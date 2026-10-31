@@ -1,4 +1,6 @@
-# 🏢 GestImmo — Gestion locative
+<p align="center"><img src="logo-horizontal.svg" alt="GestImmo" width="360"></p>
+
+# GestImmo — Gestion locative
 
 Logiciel de gestion locative pour immeubles et agences, sur téléphone et ordinateur. Installable comme une application, fonctionne hors ligne.
 

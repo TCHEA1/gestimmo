@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f4c3a">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <title>GestImmo — Gestion locative</title>
 <style>
@@ -103,7 +104,7 @@ table.rt{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;
 .recu-l{border-top:1px dashed #d1d5db;border-bottom:1px dashed #d1d5db;margin:8px 0;padding:6px 0}
 .recu-t{font-size:17px;font-weight:700}
 .doc-brand{display:flex;gap:12px;align-items:center;font-size:13px;color:#4b5563;margin:6px 0}.doc-brand img{max-height:56px;max-width:110px;border-radius:6px;background:#fff}.doc-brand b{color:#0f4c3a;font-size:15px}
-.brand{display:flex;align-items:center;gap:8px;overflow:hidden;text-overflow:ellipsis}.brand-logo{height:30px;width:30px;object-fit:contain;background:#fff;border-radius:6px}
+.brand{display:flex;align-items:center;gap:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.brand-mark{height:32px;width:32px;border-radius:8px;box-shadow:0 0 0 1.5px rgba(255,255,255,.35)}.gold{color:#f5a524}.brand-logo{height:30px;width:30px;object-fit:contain;background:#fff;border-radius:6px}
 .recu-logo{height:44px;width:44px;object-fit:contain;background:#fff;border-radius:8px;margin-right:12px}
 .nb{background:#dc2626;color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;margin-left:4px}
 .msg{background:#f0fdf4;border-radius:10px;padding:10px 12px;font-size:14px;margin:6px 0}
@@ -142,17 +143,21 @@ table.mini{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}table
 <body>
 <script type="application/json" id="data">{}</script>
 <script>
-/* ===== GestImmo v2 — gestion locative ===== */
+/* ===== GestImmo — gestion locative ===== */
+const MARK_SVG='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b3d2e"/><stop offset="1" stop-color="#17845f"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#g)"/><path d="M32 17.5 47.5 30v19.5a2.5 2.5 0 0 1-2.5 2.5H19a2.5 2.5 0 0 1-2.5-2.5V30Z" fill="#fff"/><path d="M11.5 31 32 14.5 52.5 31" fill="none" stroke="#f5a524" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="32" cy="36.5" r="5" fill="#0f4c3a"/><path d="M29.6 39.5h4.8l1.6 8.5h-8z" fill="#0f4c3a"/></svg>';
+const MARK=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(MARK_SVG)}`;
+(()=>{let l=document.querySelector('link[rel="icon"]');if(!l){l=document.createElement('link');l.rel='icon';document.head.appendChild(l);}l.type='image/svg+xml';l.href=MARK;})();
+const markImg=new Image();markImg.src=MARK;
 const SCRIPT=document.currentScript.textContent;
 const STYLE=document.querySelector('style').textContent;
 const NAV=[['dash','🏠','Accueil'],['immeubles','🏢','Immeubles'],['locataires','👥','Locataires'],['loyers','💰','Loyers'],['relances','📣','Relances'],['depenses','🧾','Dépenses'],['incidents','🛠️','Réparations'],['rapports','📊','Rapports'],['parametres','⚙️','Paramètres']];
-document.body.insertAdjacentHTML('afterbegin',`<header class="top"><b class="brand">🏢 GestImmo</b><div class="topr"><select id="immSel" aria-label="Immeuble"></select><button class="ghost sm hidden" id="lockBtn" data-a="lock" title="Verrouiller">🔒</button></div></header>
+document.body.insertAdjacentHTML('afterbegin',`<header class="top"><b class="brand"><img src="${MARK}" class="brand-mark" alt=""><span>Gest<span class="gold">Immo</span></span></b><div class="topr"><select id="immSel" aria-label="Immeuble"></select><button class="ghost sm hidden" id="lockBtn" data-a="lock" title="Verrouiller">🔒</button></div></header>
 <nav>${NAV.map(n=>`<button data-a="goto" data-id="${n[0]}">${n[1]} ${n[2]}</button>`).join('')}</nav>
 <main id="app"></main>
 <div id="toast" class="toast hidden"></div>
 <div id="ctip" class="ctip hidden"></div>
 <div id="modal" class="modal hidden"><div class="sheet"><div class="sheet-head"><h3 id="mTitle" style="margin:0"></h3><button type="button" class="ghost sm" data-a="closeModal">✕</button></div><form id="mForm" autocomplete="off"></form></div></div>
-<div id="lb" class="lb hidden" data-a="lbClose"><img id="lbImg" alt=""><div id="lbCap"></div></div><div id="lock" class="lock hidden"><form id="lockForm" class="lockbox"><h2>🔒 GestImmo</h2><p class="muted">Entrez votre code PIN</p><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8"><button class="primary" style="width:100%;margin-top:12px">Déverrouiller</button></form></div>`);
+<div id="lb" class="lb hidden" data-a="lbClose"><img id="lbImg" alt=""><div id="lbCap"></div></div><div id="lock" class="lock hidden"><form id="lockForm" class="lockbox"><img src="${MARK}" width="64" height="64" alt="" style="display:block;margin:0 auto 8px"><h2 style="margin:0">Gest<span style="color:#d98a0b">Immo</span></h2><p class="muted" style="margin-top:2px">🔒 Application verrouillée</p><p class="muted">Entrez votre code PIN</p><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8"><button class="primary" style="width:100%;margin-top:12px">Déverrouiller</button></form></div>`);
 
 const KEY='gestimmo_v1';
 const CATS=['Électricité','Eau','Gardiennage','Entretien / réparations','Travaux','Taxes / impôts','Assurance','Frais de gestion','Autre'];
@@ -382,7 +387,7 @@ const fDep=(d={})=>sel('Immeuble','immeubleId',immOpts(),d.immeubleId||defImm())
 
 /* ---------- Pages ---------- */
 function pageDash(){
-  if(!db.logements.length)return `<div class="card hero"><h2>Bienvenue sur GestImmo 👋</h2><p>Ajoutez votre immeuble et ses logements, puis enregistrez locataires, entrées, loyers, dépenses et incidents. Tout se calcule automatiquement.</p><div class="btns"><button data-a="addImmeuble">Ajouter un immeuble</button><button class="ghost" data-a="demo">Voir une démo</button></div></div>`;
+  if(!db.logements.length)return `<div class="card hero"><div style="display:flex;align-items:center;gap:14px"><img src="${MARK}" width="64" height="64" alt="" style="border-radius:15px;box-shadow:0 0 0 2px rgba(255,255,255,.35)"><h2 style="margin:0">Bienvenue sur Gest<span class="gold">Immo</span> 👋</h2></div><p>Ajoutez votre immeuble et ses logements, puis enregistrez locataires, entrées, loyers, dépenses et incidents. Tout se calcule automatiquement.</p><div class="btns"><button data-a="addImmeuble">Ajouter un immeuble</button><button class="ghost" data-a="demo">Voir une démo</button></div></div>`;
   const ym=state.mois,L=LOGS(),B=BAUX();
   const actifs=B.filter(b=>bailActif(b,ym)).map(b=>({b,s:statutBail(b,ym)}));
   const att=sum(actifs,x=>x.s.du),enc=encaisseMois(ym),dep=depMois(ym),solde=enc-dep;
@@ -645,7 +650,7 @@ function render(){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.id===(state.page==='fiche'?'locataires':state.page)));
   const nr=db.logements.length?aRelancer().filter(r=>r.type!=='avant').length:0,nb=document.querySelector('nav [data-id=relances]');
   if(nb)nb.innerHTML=`📣 Relances${nr?` <span class="nb">${nr}</span>`:''}`;
-  const br=document.querySelector('.brand');if(br)br.innerHTML=AG().logo?`<img src="${AG().logo}" class="brand-logo" alt=""> ${esc(AG().nom||'GestImmo')}`:`🏢 ${esc(AG().nom||'GestImmo')}`;
+  const br=document.querySelector('.brand');if(br)br.innerHTML=AG().logo?`<img src="${AG().logo}" class="brand-logo" alt=""><span>${esc(AG().nom||'GestImmo')}</span>`:`<img src="${MARK}" class="brand-mark" alt=""> <span>${AG().nom?esc(AG().nom):'Gest<span class="gold">Immo</span>'}</span>`;
   document.getElementById('ctip').classList.add('hidden');
   document.getElementById('app').innerHTML=(PAGES[state.page]||pageDash)();
   checkLock();
@@ -930,6 +935,7 @@ function recuCanvas(R){
   g.fillStyle='#ffffff';g.fillRect(0,0,W,H);
   g.fillStyle='#0f4c3a';g.fillRect(0,0,W,110);
   let hx=pad;
+  if(!LOGO&&markImg.complete&&markImg.naturalWidth){g.drawImage(markImg,pad,20,70,70);hx=pad+90;}
   if(LOGO){const s=Math.min(70/LOGO.width,70/LOGO.height),w=LOGO.width*s,h=LOGO.height*s;g.fillStyle='#ffffff';g.fillRect(pad-4,20-4,78,78);g.drawImage(LOGO,pad+(70-w)/2,20+(70-h)/2,w,h);hx=pad+90;}
   g.fillStyle='#ffffff';g.font=F(700,26);g.fillText('REÇU DE PAIEMENT',hx,50);
   g.font=F(400,17);g.fillText('N° '+R.num+'   ·   '+fmtDate(R.date),hx,82);
