@@ -90,6 +90,8 @@ table.rt{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;
 .lockbox input{text-align:center;font-size:22px;letter-spacing:6px}
 .plan{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:14px;margin:6px 0}
 .plan .row{padding:3px 0}
+.accord{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:2px 12px 10px;margin:6px 0}
+.warn-t{color:#92400e}
 .recu{border-radius:14px;overflow:hidden;border:1px solid #e5e7eb;margin-bottom:12px}
 .recu-h{background:#0f4c3a;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
 .recu-ok{background:#dcfce7;color:#166534;font-weight:700;font-size:13px;padding:5px 12px;border-radius:99px}
@@ -144,8 +146,8 @@ const PRIOS=['Basse','Normale','Urgente'];
 const STATS=['Ouvert','En cours','Résolu'];
 const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const MOIS_C=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
-const LBL={paye:'Payé',partiel:'Partiel',retard:'En retard',attente:'À venir'};
-const BCLS={paye:'ok',partiel:'warn',retard:'neg',attente:''};
+const LBL={paye:'Payé',partiel:'Partiel',retard:'En retard',attente:'À venir',accord:'Reste promis'};
+const BCLS={paye:'ok',partiel:'warn',retard:'neg',attente:'',accord:'warn'};
 const C_ATT='#2a78d6',C_ENC='#eb6834';
 
 /* ---------- Outils ---------- */
@@ -158,6 +160,7 @@ function curMois(){return today().slice(0,7);}
 function shift(ym,n){const [y,m]=ym.split('-').map(Number);const d=new Date(y,m-1+n,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
 const fmtDate=iso=>{if(!iso)return '—';const [y,m,d]=iso.split('-');return `${d}/${m}/${y}`;};
 const moisLabel=ym=>{const [y,m]=ym.split('-');return MOIS[m-1]+' '+y;};
+const deM=ym=>{const l=moisLabel(ym);return (/^[aeiouo]/.test(l)?'d’':'de ')+l;};
 const jours=iso=>Math.round((new Date(iso+'T00:00:00')-new Date(today()+'T00:00:00'))/86400000);
 function plusUnAn(iso){const d=new Date(iso+'T00:00:00');d.setFullYear(d.getFullYear()+1);d.setDate(d.getDate()-1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function fail(m){throw new Error(m);}
@@ -260,22 +263,32 @@ function montantDu(b,ym){let l=b.loyer,c=b.charges||0;(b.revisions||[]).forEach(
 function idx(){if(PIDX)return PIDX;PIDX=new Map();for(const p of db.paiements){const k=p.bailId+'|'+p.mois;PIDX.set(k,(PIDX.get(k)||0)+p.montant);}return PIDX;}
 const payeBail=(id,ym)=>idx().get(id+'|'+ym)||0;
 const echu=(b,ym)=>{const cur=curMois();return ym<cur||(ym===cur&&new Date().getDate()>Number(b.jour||5));};
+/* Accords de paiement : le locataire paie une partie et promet le reste pour une date */
+const accordDate=(b,ym)=>(b.accords||{})[ym]||'';
+const accordActif=(b,ym)=>{const d=accordDate(b,ym);return !!d&&today()<=d&&payeBail(b.id,ym)<montantDu(b,ym);};
 function statutBail(b,ym){
-  const du=montantDu(b,ym),p=payeBail(b.id,ym),reste=Math.max(0,du-p);
-  const statut=reste===0?'paye':p>0?'partiel':echu(b,ym)?'retard':'attente';
-  return {du,p,reste,statut};
+  const du=montantDu(b,ym),p=payeBail(b.id,ym),reste=Math.max(0,du-p),acc=accordDate(b,ym);
+  let statut=reste===0?'paye':p>0?'partiel':echu(b,ym)?'retard':'attente';
+  if(reste>0&&acc)statut=today()<=acc?'accord':'retard';
+  return {du,p,reste,statut,accord:acc};
+}
+const statutBadge=s=>s.statut==='accord'?`<span class="badge warn">⏳ Reste promis le ${fmtDate(s.accord)}</span>`:(s.statut==='retard'&&s.accord?`<span class="badge neg">Promesse non tenue (${fmtDate(s.accord)})</span>`:badge(s.statut));
+function accords(B){
+  const out=[];
+  B.forEach(b=>Object.entries(b.accords||{}).forEach(([m,d])=>{const r=Math.max(0,montantDu(b,m)-payeBail(b.id,m));if(r>0)out.push({b,m,d,r,ok:today()<=d});}));
+  return out.sort((x,y)=>x.d.localeCompare(y.d));
 }
 function moisImpayes(b){
   const cur=curMois(),end=b.fin&&b.fin.slice(0,7)<cur?b.fin.slice(0,7):cur,out=[];
   for(let m=b.debut.slice(0,7);m<=end;m=shift(m,1)){
-    if(echu(b,m)){const r=Math.max(0,montantDu(b,m)-payeBail(b.id,m));if(r>0)out.push({m,r});}
+    if(echu(b,m)&&!accordActif(b,m)){const r=Math.max(0,montantDu(b,m)-payeBail(b.id,m));if(r>0)out.push({m,r});}
   }
   return out;
 }
 function arrieres(b){const l=moisImpayes(b);return {tot:sum(l,x=>x.r),n:l.length,list:l};}
 const attenduMois=ym=>sum(BAUX().filter(b=>bailActif(b,ym)),b=>montantDu(b,ym));
 const encaisseMois=ym=>sum(PAYS().filter(p=>p.mois===ym),p=>p.montant);
-const impayeMois=ym=>sum(BAUX().filter(b=>bailActif(b,ym)&&echu(b,ym)),b=>statutBail(b,ym).reste);
+const impayeMois=ym=>sum(BAUX().filter(b=>bailActif(b,ym)&&echu(b,ym)&&!accordActif(b,ym)),b=>statutBail(b,ym).reste);
 const depMois=ym=>sum(DEPS().filter(d=>d.date.slice(0,7)===ym),d=>d.montant);
 function nextNum(){db.settings.seq=(db.settings.seq||0)+1;return `${today().slice(0,4)}-${String(db.settings.seq).padStart(4,'0')}`;}
 
@@ -368,6 +381,9 @@ function pageDash(){
     .forEach(({b,j})=>al.push(['warn','⏳',`Bail de ${bailNom(b)} (${logNom(b.logementId)}) : ${j<0?'échu depuis '+(-j)+' jour(s)':'se termine dans '+j+' jour(s)'} — ${fmtDate(b.finPrevue)}`]));
   const inc=INCS().filter(i=>i.statut!=='Résolu'),urg=inc.filter(i=>i.priorite==='Urgente').length;
   if(inc.length)al.push([urg?'neg':'warn','🛠️',`${inc.length} incident(s) en cours${urg?` dont ${urg} urgent(s)`:''}`]);
+  const acc=accords(B),accOk=acc.filter(x=>x.ok),accKo=acc.filter(x=>!x.ok);
+  accKo.forEach(x=>al.push(['neg','❌',`Promesse non tenue : ${bailNom(x.b)} devait payer ${fcfa(x.r)} (reste ${deM(x.m)}) le ${fmtDate(x.d)}`]));
+  if(accOk.length)al.push(['warn','🤝',`${accOk.length} accord(s) de paiement en cours — ${fcfa(sum(accOk,x=>x.r))} à recevoir : ${accOk.map(x=>`${bailNom(x.b)} ${fcfa(x.r)} le ${fmtDate(x.d)}`).join(', ')}`]);
   const avc=B.filter(b=>!b.fin).map(b=>({b,a:avance(b)})).filter(x=>x.a.n>0);
   if(avc.length)al.push(['info','💚',`${avc.length} locataire(s) ont payé d’avance : ${fcfa(sum(avc,x=>x.a.tot))} (${avc.map(x=>bailNom(x.b)+' jusqu’à '+moisLabel(payeJusqua(x.b))).join(', ')})`]);
   const vac=L.filter(l=>!bailLogement(l.id));
@@ -390,7 +406,7 @@ function pageDash(){
     <div><h3>À relancer — ${moisLabel(ym)}</h3>
     ${tbl([['Locataire'],['Logement'],['Reste','n'],['','act']],rel.map(({b,s})=>{
       const t=locataire(b.locataireId);
-      const msg=`Bonjour ${t?.nom||''}, rappel : le loyer de ${moisLabel(ym)} pour ${logNom(b.logementId)} présente un reste à payer de ${fcfa(s.reste)}. Merci de régulariser. Bonne journée.`;
+      const msg=`Bonjour ${t?.nom||''}, rappel : le loyer ${deM(ym)} pour ${logNom(b.logementId)} présente un reste à payer de ${fcfa(s.reste)}. Merci de régulariser. Bonne journée.`;
       return [`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(t?.nom)}</button>`,esc(logNom(b.logementId)),`<span class="neg">${fcfa(s.reste)}</span>`,
         `${t?.tel?`<a class="btn wa sm" href="${esc(waLink(t.tel,msg))}" target="_blank" rel="noopener">WhatsApp</a>`:''}<button class="sm primary" data-a="encaisser" data-id="${b.id}">Encaisser</button>`];
     }),'✅ Aucun impayé pour ce mois.')}</div>
@@ -488,7 +504,8 @@ function pageFiche(){
     <p class="muted">Entrée le ${fmtDate(b.debut)} · ${b.fin?'Sortie le '+fmtDate(b.fin):'En cours'}${b.finPrevue&&!b.fin?' · Fin prévue le '+fmtDate(b.finPrevue):''}</p>
     <p class="muted">Loyer ${fcfa(montantDu(b))} · Caution ${fcfa(b.caution)}${b.fin?` · restituée ${fcfa(b.cautionRestituee||0)}${b.cautionRetenue?` · retenue ${fcfa(b.cautionRetenue)}${b.motifRetenue?' ('+esc(b.motifRetenue)+')':''}`:''}`:''}</p>
     ${(b.revisions||[]).length?`<p class="muted">Révisions : ${b.revisions.map(r=>`${moisLabel(r.depuis)} → ${fcfa(Number(r.loyer)+Number(r.charges||0))}`).join(' · ')}</p>`:''}
-    ${a.n?`<p class="neg small">Mois impayés : ${a.list.map(x=>`${moisLabel(x.m)} (${fcfa(x.r)})`).join(', ')}</p>`:''}</div>`;
+    ${a.n?`<p class="neg small">Mois impayés : ${a.list.map(x=>`${moisLabel(x.m)} (${fcfa(x.r)})`).join(', ')}</p>`:''}
+    ${accords([b]).map(x=>`<p class="small ${x.ok?'warn-t':'neg'}">🤝 Reste ${deM(x.m)} : ${fcfa(x.r)} promis pour le ${fmtDate(x.d)}${x.ok?'':' — non tenu'}</p>`).join('')}</div>`;
   }).join('')||'<p class="muted">Aucun bail.</p>'}
   <h3>Historique des paiements</h3>
   ${tbl([['Reçu N°'],['Date'],['Période payée'],['Montant','n'],['Mode'],['','act']],recuRows(recus(pays),false),'Aucun paiement enregistré.')}`;
@@ -504,12 +521,12 @@ function pageLoyers(){
   const avs=sum(PAYS().filter(p=>p.date.slice(0,7)===ym&&p.mois>ym),p=>p.montant);
   return `${monthNav()}
   <div class="grid">${kpi('Attendu',fcfa(att))}${kpi('Loyers du mois payés',fcfa(enc),'','ok')}${kpi('Reste à percevoir',fcfa(reste),`Recouvrement ${att?Math.round(Math.min(enc,att)/att*100):0} %`,reste?'neg':'ok')}</div>
-  <div class="row"><h3>Loyers de ${moisLabel(ym)}</h3><button class="sm ghost" data-a="csv">⬇ Export Excel</button></div>
+  <div class="row"><h3>Loyers ${deM(ym)}</h3><button class="sm ghost" data-a="csv">⬇ Export Excel</button></div>
   ${tbl([['Logement'],['Locataire'],['Dû','n'],['Payé','n'],['Reste','n'],['Statut'],['Situation'],['','act']],actifs.map(({b,s})=>{
     const t=locataire(b.locataireId);
-    const msg=`Bonjour ${t?.nom||''}, rappel : le loyer de ${moisLabel(ym)} pour ${logNom(b.logementId)} présente un reste à payer de ${fcfa(s.reste)}. Merci de régulariser. Bonne journée.`;
-    return [esc(logNom(b.logementId)),`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(t?.nom)}</button>`,fcfa(s.du),fcfa(s.p),`<span class="${s.reste?'neg':'ok'}">${fcfa(s.reste)}</span>`,badge(s.statut),b.fin?'<span class="badge">Parti</span>':jusquaBadge(b),
-      `${s.reste&&t?.tel&&s.statut!=='attente'?`<a class="btn wa sm" href="${esc(waLink(t.tel,msg))}" target="_blank" rel="noopener">Relancer</a>`:''}${b.fin?'':`<button class="sm ${s.reste?'primary':'ghost'}" data-a="encaisser" data-id="${b.id}">${s.reste?'Encaisser':'+ Avance'}</button>`}`];
+    const msg=s.statut==='accord'?`Bonjour ${t?.nom||''}, petit rappel : comme convenu, le reste du loyer ${deM(ym)} (${fcfa(s.reste)}) pour ${logNom(b.logementId)} est attendu le ${fmtDate(s.accord)}. Merci et bonne journée.`:`Bonjour ${t?.nom||''}, rappel : le loyer ${deM(ym)} pour ${logNom(b.logementId)} présente un reste à payer de ${fcfa(s.reste)}. Merci de régulariser. Bonne journée.`;
+    return [esc(logNom(b.logementId)),`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(t?.nom)}</button>`,fcfa(s.du),fcfa(s.p),`<span class="${s.reste?(s.statut==='accord'?'':'neg'):'ok'}">${fcfa(s.reste)}</span>`,statutBadge(s),b.fin?'<span class="badge">Parti</span>':jusquaBadge(b),
+      `${s.reste&&t?.tel&&s.statut!=='attente'?`<a class="btn wa sm" href="${esc(waLink(t.tel,msg))}" target="_blank" rel="noopener">${s.statut==='accord'?'Rappel':'Relancer'}</a>`:''}${b.fin?'':`<button class="sm ${s.reste?'primary':'ghost'}" data-a="encaisser" data-id="${b.id}">${s.reste?'Encaisser':'+ Avance'}</button>`}`];
   }),'Aucun bail actif ce mois-ci.')}
   <div class="row"><h3>Reçus émis en ${moisLabel(ym)}</h3><span class="muted">Argent reçu : <b class="ok">${fcfa(cash)}</b>${avs?` · dont avances ${fcfa(avs)}`:''}</span></div>
   ${tbl([['Reçu N°'],['Date'],['Locataire'],['Période payée'],['Montant','n'],['Mode'],['','act']],recuRows(rc,true),'Aucun reçu émis ce mois.')}`;
@@ -755,7 +772,8 @@ function jusquaBadge(b){
   if(!j)return '<span class="badge neg">Aucun mois soldé</span>';
   if(j>cur)return `<span class="badge ok">✓ Avance jusqu’à ${moisLabel(j)}</span>`;
   if(j===cur)return `<span class="badge ok">À jour (${moisLabel(j)})</span>`;
-  return `<span class="badge ${echu(b,shift(j,1))?'neg':'warn'}">Payé jusqu’à ${moisLabel(j)}</span>`;
+  const nx=shift(j,1);
+  return `<span class="badge ${echu(b,nx)&&!accordActif(b,nx)?'neg':'warn'}">Payé jusqu’à ${moisLabel(j)}</span>`;
 }
 function enregistrer(b,lignes,info){
   const rid=uid(),num=nextNum();
@@ -770,7 +788,7 @@ function planHtml(b,montant){
   const vis=lignes.length>7?[...lignes.slice(0,3),null,...lignes.slice(-3)]:lignes;
   return `<div class="plan"><b>Répartition automatique (${lignes.length} mois) :</b>${vis.map(l=>!l?'<div class="muted small">…</div>':`<div class="row"><span>${moisLabel(l.m)}${l.m>curMois()?' <span class="badge ok">avance</span>':l.m<curMois()?' <span class="badge neg">arriéré</span>':''}</span><span>${fcfa(l.amt)}${l.reste?` <span class="muted small">(reste ${fcfa(l.reste)})</span>`:''}</span></div>`).join('')}
   ${surplus>0?`<p class="neg small">⚠️ ${fcfa(surplus)} de trop : maximum ${MAX_AVANCE} mois d’avance${b.fin?' ou fin du bail':''}.</p>`:''}
-  ${last?`<p class="ok small" style="margin:6px 0 0">${last.reste?`Le mois de ${moisLabel(last.m)} restera partiel.`:`✅ Loyer payé jusqu’à ${moisLabel(last.m)}.`}</p>`:''}</div>`;
+  ${last?`<p class="ok small" style="margin:6px 0 0">${last.reste?`Le mois ${deM(last.m)} restera partiel.`:`✅ Loyer payé jusqu’à ${moisLabel(last.m)}.`}</p>`:''}</div>`;
 }
 let ENC=null;
 A.encaisser=(bid,preset)=>{
@@ -778,13 +796,16 @@ A.encaisser=(bid,preset)=>{
   ENC=b;
   const base=montantJusqua(b,cur);
   const def=preset||base||montantDu(b,cur);
-  const q=[[0,'Mois en cours'],[2,'3 mois'],[5,'6 mois'],[11,'12 mois']].map(([k,t])=>{const ym=shift(cur,k);const v=montantJusqua(b,ym);return v>0?`<button type="button" class="sm ghost" data-a="qm" data-id="${v}">${t} · ${fcfa(v)}</button>`:'';}).join('');
+  const rc=Math.max(0,montantDu(b,cur)-payeBail(b.id,cur)),half=rc>0?montantJusqua(b,shift(cur,-1))+Math.ceil(rc/2):0;
+  const q=(half?`<button type="button" class="sm ghost" data-a="qm" data-id="${half}">½ mois · ${fcfa(half)}</button>`:'')+[[0,'Mois en cours'],[2,'3 mois'],[5,'6 mois'],[11,'12 mois']].map(([k,t])=>{const ym=shift(cur,k);const v=montantJusqua(b,ym);return v>0?`<button type="button" class="sm ghost" data-a="qm" data-id="${v}">${t} · ${fcfa(v)}</button>`:'';}).join('');
+  const dj=String(Math.min(28,Number(b.jour)||5)).padStart(2,'0');
   modal('Encaisser un paiement',
     `<p><b>${esc(bailNom(b))}</b> · ${esc(logNom(b.logementId))} · Loyer ${fcfa(montantDu(b,cur))}</p>
     <p>${jusquaBadge(b)}${a.tot?` <span class="badge neg">Arriérés ${fcfa(a.tot)}</span>`:''}</p>
     <p class="muted small">Paiement rapide (arriérés inclus) :</p><div class="btns" style="margin-top:4px">${q||'<span class="muted small">Déjà payé très en avance.</span>'}</div>`+
     num('Montant reçu (FCFA)','montant',def)+
     `<div id="plan">${planHtml(b,def)}</div>`+
+    `<div id="accordBox" class="accord ${partielFin(b,def)?'':'hidden'}"><label>🤝 Le locataire paiera le reste le<input name="accord" type="date" value="${shift(cur,1)}-${dj}"></label><p class="muted small" style="margin:0">Tant que cette date n’est pas passée, il n’est pas compté en retard. Laissez vide s’il n’y a pas d’accord.</p></div>`+
     fld('Date de réception','date',today(),'date')+
     sel('Mode de paiement','mode',MODES,'Espèces')+
     fld('Référence de transaction (facultatif)','ref','','text',false),
@@ -794,11 +815,15 @@ A.encaisser=(bid,preset)=>{
       const p=planPaiement(b,m);
       if(p.surplus>0)fail(`Montant trop élevé de ${fcfa(p.surplus)}.`);
       if(!p.lignes.length)fail('Rien à payer pour ce bail.');
+      const last=p.lignes[p.lignes.length-1];
+      if(last.reste>0&&d.accord){if(d.accord<today())fail('La date promise est déjà passée');b.accords=b.accords||{};b.accords[last.m]=d.accord;}
       const rid=enregistrer(b,p.lignes,{date:d.date,mode:d.mode,ref:d.ref.trim()});
       setTimeout(()=>{if(db.settings.autoRecu!==false)A.recu(rid);else toast('Paiement enregistré ✅');},80);
     },'Enregistrer et générer le reçu');
 };
-A.qm=v=>{const i=document.querySelector('#mForm [name=montant]');if(i){i.value=v;document.getElementById('plan').innerHTML=planHtml(ENC,Number(v));}};
+function partielFin(b,v){const l=planPaiement(b,Number(v)).lignes;return l.length>0&&l[l.length-1].reste>0;}
+function majPlan(v){const pl=document.getElementById('plan');if(!pl||!ENC)return;pl.innerHTML=planHtml(ENC,Number(v));const ab=document.getElementById('accordBox');if(ab)ab.classList.toggle('hidden',!partielFin(ENC,v));}
+A.qm=v=>{const i=document.querySelector('#mForm [name=montant]');if(i){i.value=v;majPlan(v);}};
 A.regler=bid=>{const b=db.baux.find(x=>x.id===bid),a=arrieres(b);if(!a.tot)return toast('Aucun arriéré pour ce bail.');A.encaisser(bid,a.tot);};
 A.delRecu=async rid=>{
   if(!await ask('Supprimer ce paiement et son reçu ?'))return;
@@ -824,10 +849,11 @@ function recuData(rid){
   const p=ps[0],b=db.baux.find(x=>x.id===p.bailId),l=logement(b.logementId),tot=sum(ps,x=>x.montant);
   return {rid,num:p.num||'—',date:p.date,mode:p.mode,ref:p.ref,b,l,t:locataire(b.locataireId),im:imm(l?.immeubleId)||{},tot,
     lignes:ps.map(x=>{const du=montantDu(b,x.mois),paye=payeBail(b.id,x.mois);return {m:x.mois,amt:x.montant,du,solde:paye>=du,reste:Math.max(0,du-paye)};}),
-    jusqua:payeJusqua(b),arr:arrieres(b).tot,code:verif(rid,p.num,tot)};
+    jusqua:payeJusqua(b),arr:arrieres(b).tot,code:verif(rid,p.num,tot),
+    promesse:(()=>{const x=ps[ps.length-1],du=montantDu(b,x.mois),r=Math.max(0,du-payeBail(b.id,x.mois)),d=accordDate(b,x.mois);return r>0&&d?{m:x.mois,r,d}:null;})()};
 }
 function recuTexte(R){
-  return `*REÇU DE PAIEMENT N° ${R.num}*\n${R.im.nom||''}\n\nLocataire : ${R.t?.nom||''}\nLogement : ${R.l?.nom||''}\nMontant reçu : *${fcfa(R.tot)}*\n\nDétail :\n${R.lignes.map(x=>`• ${moisLabel(x.m)} : ${fcfa(x.amt)}${x.solde?' ✔':` (reste ${fcfa(x.reste)})`}`).join('\n')}\n\nPayé le ${fmtDate(R.date)} par ${R.mode}${R.ref?' (réf. '+R.ref+')':''}\n${R.jusqua?`✅ Loyer payé jusqu’à : ${moisLabel(R.jusqua)}`:''}${R.arr?`\n⚠️ Reste dû : ${fcfa(R.arr)}`:''}\nCode de vérification : ${R.code}${R.im.proprietaire?'\n\nLe bailleur : '+R.im.proprietaire:''}\nMerci !`;
+  return `*REÇU DE PAIEMENT N° ${R.num}*\n${R.im.nom||''}\n\nLocataire : ${R.t?.nom||''}\nLogement : ${R.l?.nom||''}\nMontant reçu : *${fcfa(R.tot)}*\n\nDétail :\n${R.lignes.map(x=>`• ${moisLabel(x.m)} : ${fcfa(x.amt)}${x.solde?' ✔':` (reste ${fcfa(x.reste)})`}`).join('\n')}\n\nPayé le ${fmtDate(R.date)} par ${R.mode}${R.ref?' (réf. '+R.ref+')':''}\n${R.promesse?`🤝 Reste à payer : ${fcfa(R.promesse.r)} (loyer ${deM(R.promesse.m)}) au plus tard le ${fmtDate(R.promesse.d)}\n`:''}${R.jusqua?`✅ Loyer payé jusqu’à : ${moisLabel(R.jusqua)}`:''}${R.arr?`\n⚠️ Reste dû : ${fcfa(R.arr)}`:''}\nCode de vérification : ${R.code}${R.im.proprietaire?'\n\nLe bailleur : '+R.im.proprietaire:''}\nMerci !`;
 }
 A.recu=rid=>{
   const R=recuData(rid);if(!R)return toast('Reçu introuvable');
@@ -842,6 +868,7 @@ A.recu=rid=>{
         <div class="row"><span class="muted">Mode</span><span>${esc(R.mode)}${R.ref?' · '+esc(R.ref):''}</span></div>
         <div class="recu-l">${R.lignes.map(x=>`<div class="row"><span>Loyer ${moisLabel(x.m)}</span><span>${fcfa(x.amt)}${x.solde?'':` <span class="badge warn">partiel</span>`}</span></div>`).join('')}</div>
         <div class="row recu-t"><span>Total reçu</span><span>${fcfa(R.tot)}</span></div>
+        ${R.promesse?`<p class="warn-t" style="margin:8px 0 0">🤝 Reste <b>${fcfa(R.promesse.r)}</b> (loyer ${deM(R.promesse.m)}) à payer au plus tard le <b>${fmtDate(R.promesse.d)}</b></p>`:''}
         ${R.jusqua?`<p class="ok" style="margin:8px 0 0">✅ Loyer payé jusqu’à <b>${moisLabel(R.jusqua)}</b></p>`:''}
         ${R.arr?`<p class="neg small" style="margin:4px 0 0">Reste dû : ${fcfa(R.arr)}</p>`:''}
         <p class="muted small" style="margin-bottom:0">Code de vérification : <b>${R.code}</b>${R.im.proprietaire?' · Le bailleur : '+esc(R.im.proprietaire):''}</p>
@@ -859,7 +886,7 @@ A.quittance=pid=>{const p=db.paiements.find(x=>x.id===pid);if(p)A.recu(p.recu||p
 A.copyRecu=async rid=>{try{await navigator.clipboard.writeText(recuTexte(recuData(rid)).replace(/\*/g,''));toast('Texte du reçu copié ✅');}catch(e){toast('Copie impossible ici');}};
 function recuCanvas(R){
   const W=720,pad=36,lh=34,n=R.lignes.length;
-  const H=148+40+3*lh+12+n*lh+10+44+(R.jusqua?30:0)+(R.arr?30:0)+44;
+  const H=148+40+3*lh+12+n*lh+10+44+(R.promesse?30:0)+(R.jusqua?30:0)+(R.arr?30:0)+44;
   const c=document.createElement('canvas');c.width=W*2;c.height=H*2;
   const g=c.getContext('2d');g.scale(2,2);
   const F=(w,s)=>`${w} ${s}px system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif`;
@@ -877,6 +904,7 @@ function recuCanvas(R){
   R.lignes.forEach(x=>row('Loyer '+moisLabel(x.m),fcfa(x.amt)+(x.solde?'':' (partiel)')));
   g.beginPath();g.moveTo(pad,y-20);g.lineTo(W-pad,y-20);g.stroke();y+=10;
   g.fillStyle='#111827';g.font=F(700,22);g.fillText('Total reçu',pad,y);g.textAlign='right';g.fillText(fcfa(R.tot),W-pad,y);g.textAlign='left';y+=44;
+  if(R.promesse){g.fillStyle='#92400e';g.font=F(600,17);g.fillText('🤝 Reste '+fcfa(R.promesse.r)+' à payer au plus tard le '+fmtDate(R.promesse.d),pad,y);y+=30;}
   if(R.jusqua){g.fillStyle='#15803d';g.font=F(600,18);g.fillText('✅ Loyer payé jusqu’à '+moisLabel(R.jusqua),pad,y);y+=30;}
   if(R.arr){g.fillStyle='#b91c1c';g.font=F(400,16);g.fillText('Reste dû : '+fcfa(R.arr),pad,y);y+=30;}
   g.fillStyle='#6b7280';g.font=F(400,14);g.fillText('Code de vérification : '+R.code+(R.im.proprietaire?'   ·   Le bailleur : '+R.im.proprietaire:''),pad,H-28);
@@ -904,7 +932,7 @@ A.dlRecu=rid=>{
 <table><tr><th>Période</th><th class="n">Montant</th><th>État</th></tr>${R.lignes.map(x=>`<tr><td>Loyer ${moisLabel(x.m)}</td><td class="n">${fcfa(x.amt)}</td><td>${x.solde?'Soldé':'Partiel (reste '+fcfa(x.reste)+')'}</td></tr>`).join('')}
 <tr class="tot"><td>Total reçu</td><td class="n">${fcfa(R.tot)}</td><td></td></tr></table>
 <table><tr><td>Mode de paiement</td><td>${esc(R.mode)}${R.ref?' · réf. '+esc(R.ref):''}</td></tr><tr><td>Date de réception</td><td>${fmtDate(R.date)}</td></tr>
-${R.jusqua?`<tr><td>Loyer payé jusqu’à</td><td><b>${moisLabel(R.jusqua)}</b></td></tr>`:''}${R.arr?`<tr><td>Reste dû</td><td>${fcfa(R.arr)}</td></tr>`:''}<tr><td>Code de vérification</td><td>${R.code}</td></tr></table>
+${R.promesse?`<tr><td>Reste promis</td><td><b>${fcfa(R.promesse.r)}</b> au plus tard le ${fmtDate(R.promesse.d)}</td></tr>`:''}${R.jusqua?`<tr><td>Loyer payé jusqu’à</td><td><b>${moisLabel(R.jusqua)}</b></td></tr>`:''}${R.arr?`<tr><td>Reste dû</td><td>${fcfa(R.arr)}</td></tr>`:''}<tr><td>Code de vérification</td><td>${R.code}</td></tr></table>
 <p class="foot">Fait le ${fmtDate(R.date)}.<br><br>Signature : ____________________</p>`);
   saveFile(`recu-${R.num}.html`,html,'text/html');
 };
@@ -1020,6 +1048,7 @@ function demoDb(){
     }
   });
   d.paiements.forEach(p=>p.recu=p.id);
+  d.baux[1].accords={[ym]:`${shift(ym,1)}-05`};
   seq++;const advNum=`${ym.slice(0,4)}-${String(seq).padStart(4,'0')}`;
   for(let i=1;i<=3;i++){const m=shift(ym,i),b1=d.baux[0];d.paiements.push({id:uid(),bailId:'b1',mois:m,montant:montantDu(b1,m),date:`${ym}-02`,mode:'Wave',ref:'Avance 3 mois',num:advNum,recu:'adv1'});}
   d.settings.seq=seq;
@@ -1047,7 +1076,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('pointerover',chartTip);
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
 document.addEventListener('input',e=>{
-  if(e.target.name==='montant'&&ENC&&document.getElementById('plan'))document.getElementById('plan').innerHTML=planHtml(ENC,Number(e.target.value));
+  if(e.target.name==='montant'&&ENC&&document.getElementById('plan'))majPlan(e.target.value);
   if(e.target.id==='search'){state.search=e.target.value;const l=document.getElementById('liste');if(l)l.innerHTML=listeLocataires();}
 });
 document.addEventListener('change',e=>{
