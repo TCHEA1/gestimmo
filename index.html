@@ -91,7 +91,7 @@ table.rt{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;
 .quit h4{margin:0 0 8px;letter-spacing:.5px}
 .lock{position:fixed;inset:0;background:linear-gradient(135deg,#0f4c3a,#14795c);display:flex;align-items:center;justify-content:center;z-index:40}
 .lockbox{background:#fff;border-radius:16px;padding:24px;width:min(320px,90vw);text-align:center}
-.lockbox input{text-align:center;font-size:22px;letter-spacing:6px}
+.lockbox input{font-size:16px}.lockbox input[inputmode=numeric]{text-align:center;font-size:22px;letter-spacing:6px}
 .plan{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:14px;margin:6px 0}
 .plan .row{padding:3px 0}
 .accord{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:2px 12px 10px;margin:6px 0}
@@ -121,6 +121,8 @@ table.mini{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}table
 .who-list{display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto}.who-list button{display:flex;justify-content:space-between;align-items:center;text-align:left;background:#f3f4f6}.who-list button.on{background:#0f4c3a;color:#fff}.who-list small{opacity:.7;font-size:12px}
 .code-secours{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:22px;letter-spacing:2px;text-align:center;background:#fef3c7;border:2px dashed #f59e0b;border-radius:10px;padding:14px;margin:12px 0}
 .demo-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#fef3c7;border:1px solid #fcd34d;color:#78350f;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:14px}
+.pw{display:flex;gap:6px;align-items:center;margin-top:4px}.pw input{margin:0}.pw button{padding:9px 11px}
+#lockForm label{font-size:13px}code{background:#f3f4f6;border-radius:5px;padding:1px 6px;font-size:13px}
 .hidden-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
 @media(max-width:959px){
   .rt thead{display:none}
@@ -207,6 +209,7 @@ function migrate(d){
     }
   }
   delete d.immeuble;
+  (d.settings?.users||[]).forEach((u,k,arr)=>{if(!u.login){let b=normLogin((u.nom||'user').split(/\s+/)[0])||'user',l=b,n=2;while(arr.some(x=>x!==u&&x.login===l))l=b+(n++);u.login=l;}});
   if(!d._demo&&(d.immeubles||[]).some(i=>i.id==='i1'&&i.nom==='Résidence Les Palmiers')&&(d.locataires||[]).some(t=>t.id==='t1'&&t.nom==='Kouamé Aya'))d._demo=true;
   (d.logements||[]).forEach(l=>{if(OLD_TYPES[l.type])l.type=OLD_TYPES[l.type];});
   const e=emptyDb();
@@ -395,7 +398,7 @@ const fDep=(d={})=>sel('Immeuble','immeubleId',immOpts(),d.immeubleId||defImm())
 
 /* ---------- Pages ---------- */
 function pageDash(){
-  if(!db.logements.length)return `<div class="card hero"><div style="display:flex;align-items:center;gap:14px"><img src="${MARK}" width="64" height="64" alt="" style="border-radius:15px;box-shadow:0 0 0 2px rgba(255,255,255,.35)"><h2 style="margin:0">Bienvenue sur Gest<span class="gold">Immo</span> 👋</h2></div><p>Ajoutez votre immeuble et ses logements, puis enregistrez locataires, entrées, loyers, dépenses et incidents. Tout se calcule automatiquement.</p><div class="btns"><button data-a="addImmeuble">Ajouter un immeuble</button><button class="ghost" data-a="demo">🎭 Voir une démo d’abord</button></div></div>`;
+  if(!db.logements.length)return `<div class="card hero"><div style="display:flex;align-items:center;gap:14px"><img src="${MARK}" width="64" height="64" alt="" style="border-radius:15px;box-shadow:0 0 0 2px rgba(255,255,255,.35)"><h2 style="margin:0">Bienvenue sur Gest<span class="gold">Immo</span> 👋</h2></div><p>Ajoutez votre immeuble et ses logements, puis enregistrez locataires, entrées, loyers, dépenses et incidents. Tout se calcule automatiquement.</p><div class="btns"><button data-a="addImmeuble">Ajouter un immeuble</button><button class="ghost" data-a="demo">🎭 Voir une démo d’abord</button>${comptes()?'':'<button class="ghost" data-a="creerAdmin">🔐 Créer mon compte</button>'}</div></div>`;
   const ym=state.mois,L=LOGS(),B=BAUX();
   const actifs=B.filter(b=>bailActif(b,ym)).map(b=>({b,s:statutBail(b,ym)}));
   const att=sum(actifs,x=>x.s.du),enc=encaisseMois(ym),dep=depMois(ym),solde=enc-dep;
@@ -623,7 +626,7 @@ function pageRapports(){
 }
 
 function pageParametres(){
-  if(comptes()&&!isAdmin()){const u=me();return `<h2>Mon compte</h2><div class="card"><p>👤 <b>${esc(u?.nom||'')}</b> — ${ROLE[u?.role]||''}</p><p class="muted">Vous pouvez encaisser les loyers, émettre les reçus, enregistrer les locataires, les entrées, les réparations et les dépenses (validées par le Super admin). Toutes vos actions sont enregistrées.</p><div class="btns"><button class="sm ghost" data-a="exportJson">📤 Envoyer mes données au propriétaire (sauvegarde)</button><button class="sm danger" data-a="logout">Se déconnecter</button></div></div>`;}
+  if(comptes()&&!isAdmin()){const u=me();return `<h2>Mon compte</h2><div class="card"><p>👤 <b>${esc(u?.nom||'')}</b> — ${ROLE[u?.role]||''}</p><p class="muted">Vous pouvez encaisser les loyers, émettre les reçus, enregistrer les locataires, les entrées, les réparations et les dépenses (validées par le Super admin). Toutes vos actions sont enregistrées.</p><div class="btns"><button class="sm ghost" data-a="exportJson">📤 Envoyer mes données au propriétaire (sauvegarde)</button><button class="sm ghost" data-a="monMdp">🔑 Changer mon mot de passe</button><button class="sm danger" data-a="logout">⏻ Se déconnecter</button></div><p class="muted small">Nom d’utilisateur : <code>${esc(u?.login||'')}</code></p></div>`;}
   return `<h2>Paramètres</h2>
   ${cardComptes()}
   <div class="cols2">
@@ -663,7 +666,7 @@ function render(){
   document.querySelectorAll('nav [data-id=caisse]').forEach(b=>b.classList.toggle('hidden',!comptes()));
   const w=document.getElementById('who'),u=me();
   if(w){w.classList.toggle('hidden',!(comptes()&&u&&connecte()));if(u)w.innerHTML=`${u.role==='admin'?'👑':'👤'} ${esc(u.nom)} <small>${ROLE[u.role]}</small>`;}
-  const lb=document.getElementById('lockBtn');if(lb)lb.textContent=comptes()?'⏻ Quitter':'🔒';
+  const lb=document.getElementById('lockBtn');if(lb)lb.textContent=comptes()?'⏻ Se déconnecter':'🔒';
   if(state.imm!=='all'&&!imm(state.imm))state.imm='all';
   const s=document.getElementById('immSel');
   s.innerHTML=`<option value="all">Tous les immeubles</option>`+db.immeubles.map(i=>`<option value="${i.id}" ${i.id===state.imm?'selected':''}>${esc(i.nom)}</option>`).join('');
@@ -1485,32 +1488,43 @@ function controle(){
 
 /* --- Connexion --- */
 let LOGIN={uid:null,mode:'login'};
+function normLogin(v){return String(v||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9._-]/g,'');}
+function loginLibre(l,exceptId){return !USERS().some(u=>u.id!==exceptId&&u.login===l);}
+function suggestLogin(nom){let b=normLogin(nom.split(/\s+/)[0])||'user',l=b,k=2;while(!loginLibre(l))l=b+(k++);return l;}
+let ESSAIS=0,BLOQUE=0;
 function renderLock(){
   const box=document.getElementById('lockForm');
   if(compromis()){box.innerHTML=`<img src="${MARK}" width="64" height="64" alt="" style="display:block;margin:0 auto 8px"><h2 style="margin:0">Accès bloqué</h2><p class="neg">Les données de sécurité ont été altérées (comptes supprimés). Seul le propriétaire peut restaurer une sauvegarde.</p><label class="btn primary" style="position:relative;display:block">📥 Importer une sauvegarde du propriétaire<input type="file" id="importFile" accept="application/json,.json" class="hidden-input"></label>`;return;}
   if(!comptes()){box.innerHTML=`<img src="${MARK}" width="64" height="64" alt="" style="display:block;margin:0 auto 8px"><h2 style="margin:0">Gest<span style="color:#d98a0b">Immo</span></h2><p class="muted" style="margin-top:2px">🔒 Application verrouillée</p><p class="muted">Entrez votre code PIN</p><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8"><button class="primary" style="width:100%;margin-top:12px">Déverrouiller</button>`;return;}
-  const us=USERS().filter(u=>u.actif!==false),u=us.find(x=>x.id===LOGIN.uid)||null;
-  if(LOGIN.mode==='secours'){box.innerHTML=`<h2 style="margin:0 0 6px">Code de secours</h2><p class="muted small">Entrez le code de secours remis à la création du compte Super admin, puis choisissez un nouveau mot de passe.</p><input id="recIn" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" style="text-align:center;letter-spacing:2px"><input id="newPw" type="password" placeholder="Nouveau mot de passe (6 caractères min.)" style="margin-top:8px;text-align:center"><button class="primary" style="width:100%;margin-top:12px">Réinitialiser</button><button type="button" class="ghost" style="width:100%;margin-top:6px" data-a="lockMode" data-id="login">Retour</button>`;return;}
-  box.innerHTML=`<img src="${MARK}" width="56" height="56" alt="" style="display:block;margin:0 auto 6px"><h2 style="margin:0">Gest<span style="color:#d98a0b">Immo</span></h2><p class="muted" style="margin:2px 0 10px">Qui se connecte ?</p>
-  <div class="who-list">${us.map(x=>`<button type="button" class="${x.id===LOGIN.uid?'on':''}" data-a="lockUser" data-id="${x.id}">${x.role==='admin'?'👑':'👤'} ${esc(x.nom)}<small>${ROLE[x.role]}</small></button>`).join('')}</div>
-  ${u?`<input id="pinIn" type="password" ${u.role==='admin'?'placeholder="Mot de passe"':'inputmode="numeric" placeholder="Code PIN" maxlength="8"'} autocomplete="off" style="margin-top:10px"><button class="primary" style="width:100%;margin-top:10px" id="loginBtn">Se connecter</button>${u.role==='admin'?'<button type="button" class="linkbtn small" style="margin-top:8px" data-a="lockMode" data-id="secours">Mot de passe oublié ?</button>':''}`:'<p class="muted small">Choisissez votre nom.</p>'}`;
-  if(u)setTimeout(()=>document.getElementById('pinIn')?.focus(),50);
+  if(LOGIN.mode==='secours'){box.innerHTML=`<h2 style="margin:0 0 6px">Mot de passe oublié</h2><p class="muted small">Entrez le code de secours remis à la création du compte Super admin, puis choisissez un nouveau mot de passe.</p><input id="recIn" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" style="text-align:center;letter-spacing:2px"><input id="newPw" type="password" placeholder="Nouveau mot de passe (6 caractères min.)" style="margin-top:8px;text-align:center"><button class="primary" style="width:100%;margin-top:12px">Réinitialiser</button><button type="button" class="ghost" style="width:100%;margin-top:6px" data-a="lockMode" data-id="login">Retour</button><p class="muted small" style="margin-bottom:0">Gestionnaire ? Demandez au Super admin de vous donner un nouveau mot de passe.</p>`;return;}
+  box.innerHTML=`<img src="${MARK}" width="60" height="60" alt="" style="display:block;margin:0 auto 6px"><h2 style="margin:0">Gest<span style="color:#d98a0b">Immo</span></h2><p class="muted" style="margin:2px 0 12px">Connectez-vous à votre compte</p>
+  <label style="text-align:left">Nom d’utilisateur<input id="loginIn" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(LOGIN.last||'')}"></label>
+  <label style="text-align:left">Mot de passe<div class="pw"><input id="pinIn" type="password" autocomplete="current-password"><button type="button" class="ghost sm" data-a="voirMdp" title="Afficher">👁</button></div></label>
+  <button class="primary" style="width:100%;margin-top:4px" id="loginBtn">Se connecter</button>
+  <button type="button" class="linkbtn small" style="margin-top:10px" data-a="lockMode" data-id="secours">Mot de passe oublié ?</button>`;
+  setTimeout(()=>document.getElementById(LOGIN.last?'pinIn':'loginIn')?.focus(),50);
 }
-A.lockUser=id=>{LOGIN.uid=id;renderLock();};
+A.voirMdp=()=>{const i=document.getElementById('pinIn');if(i)i.type=i.type==='password'?'text':'password';};
 A.lockMode=m=>{LOGIN.mode=m;renderLock();};
-async function connexion(pass){
-  const u=USERS().find(x=>x.id===LOGIN.uid);if(!u)return;
-  const btn=document.getElementById('loginBtn');if(btn){btn.disabled=true;btn.textContent='Vérification…';}
+async function connexion(login,pass){
+  const btn=document.getElementById('loginBtn');
+  if(Date.now()<BLOQUE)return toast(`Trop d’essais. Réessayez dans ${Math.ceil((BLOQUE-Date.now())/1000)} s.`);
+  const l=normLogin(login);LOGIN.last=l;
+  if(!l||!pass)return toast('Entrez votre nom d’utilisateur et votre mot de passe');
+  const u=USERS().find(x=>x.login===l&&x.actif!==false);
+  if(btn){btn.disabled=true;btn.textContent='Vérification…';}
   try{
+    if(!u)throw 0;
     if(u.role==='admin'){const k=await unwrapKey(u.wrapP,pass,u.salt);if(!keyOk(k))throw 0;ADMKEY=k;try{sessionStorage.setItem(KEY+'_k',hexb(k));}catch(e){}}
     else{if(hexb(await deriveBits(pass,u.salt,60000))!==u.ver)throw 0;}
-    state.uid=u.id;LAST_ACT=Date.now();
+    state.uid=u.id;LAST_ACT=Date.now();LOGIN.last='';
     const pb=u.role==='admin'?controle():[];
     log('connexion',`${u.nom} (${ROLE[u.role]})`);
     if(u.role==='admin')signer();
     save();saveUi();state.page=u.role==='admin'&&pb.length?'journal':state.page;render();
     toast(u.role==='admin'&&pb.length?`⚠️ ${pb.length} anomalie(s) détectée(s) : voir le journal`:`Bienvenue ${u.nom} 👋`);
-  }catch(e){toast('Code incorrect');if(btn){btn.disabled=false;btn.textContent='Se connecter';}const i=document.getElementById('pinIn');if(i)i.value='';}
+    ESSAIS=0;
+  }catch(e){ESSAIS++;if(ESSAIS>=5){BLOQUE=Date.now()+30000*Math.min(10,ESSAIS-4);toast('Trop d’essais : connexion bloquée '+(30*Math.min(10,ESSAIS-4))+' s');}else toast('Nom d’utilisateur ou mot de passe incorrect');if(btn){btn.disabled=false;btn.textContent='Se connecter';}const i=document.getElementById('pinIn');if(i){i.value='';i.focus();}}
 }
 async function secours(code,pw){
   const u=adminU();if(!u)return;
@@ -1518,35 +1532,40 @@ async function secours(code,pw){
   try{const k=await unwrapKey(u.wrapR,code.trim().toUpperCase(),u.salt);if(!keyOk(k))throw 0;u.wrapP=await wrapKey(k,pw,u.salt);ADMKEY=k;state.uid=u.id;try{sessionStorage.setItem(KEY+'_k',hexb(k));}catch(e){}log('secours','Mot de passe super admin réinitialisé avec le code de secours');signer();LOGIN.mode='login';save();saveUi();render();toast('Mot de passe changé ✅');}
   catch(e){toast('Code de secours incorrect');}
 }
-A.logout=()=>{if(!comptes()){state.unlocked=false;saveUi();checkLock();return;}const u=me();if(u){log('deconnexion',u.nom);if(u.role==='admin')signer();}ADMKEY=null;state.uid=null;LOGIN={uid:null,mode:'login'};try{sessionStorage.removeItem(KEY+'_k');}catch(e){}save();saveUi();render();};
+A.logout=()=>{if(!comptes()){state.unlocked=false;saveUi();checkLock();return;}const u=me();if(u){log('deconnexion',u.nom);if(u.role==='admin')signer();}ADMKEY=null;state.uid=null;LOGIN={uid:null,mode:'login',last:u?.login||''};try{sessionStorage.removeItem(KEY+'_k');}catch(e){}closeModal();save();saveUi();render();toast('Vous êtes déconnecté 👋');};
 setInterval(()=>{if(comptes()&&me()&&Date.now()-LAST_ACT>15*60000){A.logout();toast('Déconnecté après 15 min d’inactivité');}},30000);
 ['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{LAST_ACT=Date.now();},{passive:true}));
 
 /* --- Gestion des comptes (super admin) --- */
 A.creerAdmin=()=>modal('Créer le compte Super admin',
   `<p class="muted">Le Super admin (vous, le propriétaire) a accès à tout. Les gestionnaires auront des droits limités et toutes leurs actions seront enregistrées.</p>`+
-  fld('Votre nom','nom',AG().nom?'':'')+fld('Votre téléphone (WhatsApp)','tel','','tel',false)+
+  fld('Votre nom complet','nom','')+fld('Nom d’utilisateur (pour vous connecter)','login','','text',true,'autocapitalize="none" autocomplete="username" placeholder="ex : mares"')+fld('Votre téléphone (WhatsApp)','tel','','tel',false)+
   `<label>Mot de passe (6 caractères minimum)<input name="p1" type="password" required minlength="6" autocomplete="new-password"></label><label>Confirmer le mot de passe<input name="p2" type="password" required autocomplete="new-password"></label>`,
   d=>{
-    if(!d.nom.trim())fail('Indiquez votre nom');if(d.p1.length<6)fail('Mot de passe : 6 caractères minimum');if(d.p1!==d.p2)fail('Les mots de passe ne correspondent pas');
+    if(!d.nom.trim())fail('Indiquez votre nom');const lg=normLogin(d.login);if(lg.length<3)fail('Nom d’utilisateur : 3 caractères minimum (lettres, chiffres, . _ -)');if(d.p1.length<6)fail('Mot de passe : 6 caractères minimum');if(d.p1!==d.p2)fail('Les mots de passe ne correspondent pas');
     (async()=>{
       const k=crypto.getRandomValues(new Uint8Array(32)),salt=hexb(crypto.getRandomValues(new Uint8Array(16))),code=randCode(16);
-      const u={id:uid(),nom:d.nom.trim(),tel:d.tel.trim(),role:'admin',salt,wrapP:await wrapKey(k,d.p1,salt),wrapR:await wrapKey(k,code,salt),actif:true,cree:today()};
+      const u={id:uid(),nom:d.nom.trim(),login:lg,tel:d.tel.trim(),role:'admin',salt,wrapP:await wrapKey(k,d.p1,salt),wrapR:await wrapKey(k,code,salt),actif:true,cree:today()};
       db.settings.users=[u];db.settings.keyCheck=hmacHex(k,'gestimmo-keycheck');db.settings.pin='';db.journal=[];db.checkpoints=[];
       ADMKEY=k;state.uid=u.id;try{sessionStorage.setItem(KEY+'_k',hexb(k));}catch(e){}
       log('comptes','Création du compte Super admin '+u.nom);signer();save();saveUi();render();
-      modal('🔑 Votre code de secours',`<p>Notez ce code et gardez-le en lieu sûr (pas dans le téléphone partagé). Il permet de récupérer l’accès si vous oubliez votre mot de passe.</p><p class="code-secours">${code}</p><p class="neg small">Il ne sera plus jamais affiché.</p><div class="actions"><button type="button" class="primary" data-a="closeModal">J’ai noté le code</button></div>`,null);
+      modal('🔑 Votre code de secours',`<div class="plan"><div class="row"><span>Nom d’utilisateur</span><b>${esc(u.login)}</b></div><div class="row"><span>Mot de passe</span><b>celui que vous venez de choisir</b></div></div><p>Notez ce code et gardez-le en lieu sûr (pas dans le téléphone partagé). Il permet de récupérer l’accès si vous oubliez votre mot de passe.</p><p class="code-secours">${code}</p><p class="neg small">Il ne sera plus jamais affiché.</p><div class="actions"><button type="button" class="primary" data-a="closeModal">J’ai noté le code</button></div>`,null);
     })().catch(()=>toast('Erreur lors de la création du compte'));
     return false;
   },'Créer le compte');
+const creerAdminOrig=A.creerAdmin;A.creerAdmin=()=>{creerAdminOrig();const n=document.querySelector('#mForm [name=nom]'),l=document.querySelector('#mForm [name=login]');if(n&&l)n.addEventListener('input',()=>{if(!l.dataset.touche)l.value=suggestLogin(n.value);});if(l)l.addEventListener('input',()=>{l.dataset.touche=1;});};
 A.addGest=()=>modal('Ajouter un gestionnaire',
-  fld('Nom du gestionnaire','nom','')+fld('Téléphone','tel','','tel',false)+`<label>Code PIN (4 à 8 chiffres)<input name="pin" type="password" inputmode="numeric" required maxlength="8"></label>`+
+  fld('Nom complet du gestionnaire','nom','')+fld('Nom d’utilisateur','login','','text',true,'autocapitalize="none" placeholder="ex : koffi"')+fld('Téléphone','tel','','tel',false)+`<label>Mot de passe (4 caractères minimum)<input name="pin" type="text" required minlength="4" autocomplete="new-password"></label><p class="muted small">Communiquez-lui son nom d’utilisateur et son mot de passe. Il pourra le changer ensuite.</p>`+
   `<p class="muted small">Le gestionnaire peut encaisser les loyers, émettre les reçus, enregistrer locataires, entrées, réparations et dépenses (à valider par vous). Il ne peut rien supprimer, ni annuler un reçu, ni modifier les loyers.</p>`,
-  d=>{if(!d.nom.trim())fail('Indiquez le nom');if(!/^\d{4,8}$/.test(d.pin))fail('Code PIN de 4 à 8 chiffres');
-    (async()=>{const salt=hexb(crypto.getRandomValues(new Uint8Array(16)));const u={id:uid(),nom:d.nom.trim(),tel:d.tel.trim(),role:'gestionnaire',salt,ver:hexb(await deriveBits(d.pin,salt,60000)),actif:true,cree:today()};db.settings.users.push(u);log('comptes','Ajout du gestionnaire '+u.nom);signer();closeModal();save();render();toast('Gestionnaire ajouté ✅');})();
+  d=>{if(!d.nom.trim())fail('Indiquez le nom');const lg=normLogin(d.login);if(lg.length<3)fail('Nom d’utilisateur : 3 caractères minimum');if(!loginLibre(lg))fail('Ce nom d’utilisateur est déjà pris');if(d.pin.length<4)fail('Mot de passe : 4 caractères minimum');
+    (async()=>{const salt=hexb(crypto.getRandomValues(new Uint8Array(16)));const u={id:uid(),nom:d.nom.trim(),login:lg,tel:d.tel.trim(),role:'gestionnaire',salt,ver:hexb(await deriveBits(d.pin,salt,60000)),actif:true,cree:today()};db.settings.users.push(u);log('comptes','Ajout du gestionnaire '+u.nom+' ('+u.login+')');signer();closeModal();save();render();toast(`Gestionnaire ajouté ✅ Identifiant : ${u.login}`);})();
     return false;},'Ajouter');
-A.pinGest=id=>{const u=USERS().find(x=>x.id===id);modal(`Nouveau code PIN — ${u.nom}`,`<label>Nouveau code PIN (4 à 8 chiffres)<input name="pin" type="password" inputmode="numeric" required maxlength="8"></label>`,
-  d=>{if(!/^\d{4,8}$/.test(d.pin))fail('Code PIN de 4 à 8 chiffres');(async()=>{u.ver=hexb(await deriveBits(d.pin,u.salt,60000));log('comptes','Code PIN changé : '+u.nom);signer();closeModal();save();render();toast('Code changé ✅');})();return false;});};
+A.pinGest=id=>{const u=USERS().find(x=>x.id===id);modal(`Nouveau mot de passe — ${u.nom}`,`<label>Nouveau mot de passe (4 caractères minimum)<input name="pin" type="text" required minlength="4" autocomplete="new-password"></label>`,
+  d=>{if(d.pin.length<4)fail('4 caractères minimum');(async()=>{u.ver=hexb(await deriveBits(d.pin,u.salt,60000));log('comptes','Mot de passe changé : '+u.nom);signer();closeModal();save();render();toast('Mot de passe changé ✅');})();return false;});};
+A.editUser=id=>{const u=USERS().find(x=>x.id===id);modal(`Modifier le compte — ${u.nom}`,fld('Nom complet','nom',u.nom)+fld('Nom d’utilisateur','login',u.login||'','text',true,'autocapitalize="none"')+fld('Téléphone','tel',u.tel||'','tel',false),
+  d=>{const lg=normLogin(d.login);if(!d.nom.trim())fail('Indiquez le nom');if(lg.length<3)fail('Nom d’utilisateur : 3 caractères minimum');if(!loginLibre(lg,u.id))fail('Ce nom d’utilisateur est déjà pris');const av=u.login;Object.assign(u,{nom:d.nom.trim(),login:lg,tel:d.tel.trim()});log('comptes',`Compte modifié : ${u.nom}${av!==lg?` (identifiant ${av} → ${lg})`:''}`);});};
+A.monMdp=()=>{const u=me();if(!u||u.role==='admin')return A.pwAdmin();modal('Changer mon mot de passe',`<label>Mot de passe actuel<input name="old" type="password" required></label><label>Nouveau mot de passe (4 caractères min.)<input name="p1" type="password" required minlength="4"></label><label>Confirmer<input name="p2" type="password" required></label>`,
+  d=>{if(d.p1.length<4)fail('4 caractères minimum');if(d.p1!==d.p2)fail('Les mots de passe ne correspondent pas');(async()=>{if(hexb(await deriveBits(d.old,u.salt,60000))!==u.ver)return toast('Mot de passe actuel incorrect');u.ver=hexb(await deriveBits(d.p1,u.salt,60000));log('comptes','Mot de passe changé par '+u.nom);closeModal();save();toast('Mot de passe changé ✅');})();return false;});};
 A.toggleGest=id=>{const u=USERS().find(x=>x.id===id);u.actif=u.actif===false;log('comptes',(u.actif?'Réactivation':'Désactivation')+' de '+u.nom);signer();save();render();};
 A.pwAdmin=()=>modal('Changer le mot de passe Super admin',`<label>Nouveau mot de passe (6 caractères min.)<input name="p1" type="password" required minlength="6"></label><label>Confirmer<input name="p2" type="password" required></label>`,
   d=>{if(d.p1.length<6)fail('6 caractères minimum');if(d.p1!==d.p2)fail('Les mots de passe ne correspondent pas');const u=adminU();(async()=>{u.wrapP=await wrapKey(ADMKEY,d.p1,u.salt);log('comptes','Mot de passe Super admin changé');signer();closeModal();save();toast('Mot de passe changé ✅');})();return false;});
@@ -1555,13 +1574,13 @@ A.modesCaisse=()=>modal('Argent encaissé par le gestionnaire',`<p class="muted"
 function cardComptes(){
   if(!comptes())return `<div class="card"><h3 style="margin-top:0">👥 Comptes & accès</h3><p class="muted">Créez votre compte <b>Super admin</b> (accès à tout), puis un compte pour chaque <b>gestionnaire</b>. Chaque action est enregistrée dans un journal signé : vous serez alerté si quelqu’un supprime un reçu ou modifie un montant.</p><button class="primary sm" data-a="creerAdmin">👑 Créer mon compte Super admin</button></div>`;
   return `<div class="card"><h3 style="margin-top:0">👥 Comptes & accès</h3>
-  ${tbl([['Nom'],['Rôle'],['Téléphone'],['État'],['','act']],USERS().map(u=>[`<b>${esc(u.nom)}</b>`,`${u.role==='admin'?'👑':'👤'} ${ROLE[u.role]}`,esc(u.tel||'—'),u.actif===false?'<span class="badge neg">Désactivé</span>':'<span class="badge ok">Actif</span>',
-    u.role==='admin'?'<button class="sm ghost" data-a="pwAdmin">Changer le mot de passe</button>':`<button class="sm ghost" data-a="pinGest" data-id="${u.id}">Nouveau PIN</button><button class="sm ${u.actif===false?'':'danger'}" data-a="toggleGest" data-id="${u.id}">${u.actif===false?'Réactiver':'Désactiver'}</button>`]))}
+  ${tbl([['Nom'],['Nom d’utilisateur'],['Rôle'],['Téléphone'],['État'],['','act']],USERS().map(u=>[`<b>${esc(u.nom)}</b>`,`<code>${esc(u.login||'')}</code>`,`${u.role==='admin'?'👑':'👤'} ${ROLE[u.role]}`,esc(u.tel||'—'),u.actif===false?'<span class="badge neg">Désactivé</span>':'<span class="badge ok">Actif</span>',
+    `<button class="sm ghost" data-a="editUser" data-id="${u.id}">Modifier</button>`+(u.role==='admin'?'<button class="sm ghost" data-a="pwAdmin">Mot de passe</button>':`<button class="sm ghost" data-a="pinGest" data-id="${u.id}">Nouveau mot de passe</button>`)+(u.role==='admin'?'':`<button class="sm ${u.actif===false?'':'danger'}" data-a="toggleGest" data-id="${u.id}">${u.actif===false?'Réactiver':'Désactiver'}</button>`)]))}
   <div class="btns"><button class="primary sm" data-a="addGest">+ Ajouter un gestionnaire</button><button class="sm ghost" data-a="modesCaisse">💵 Argent géré par le gestionnaire</button><button class="sm ghost" data-a="goto" data-id="journal">🛡️ Journal & contrôle</button></div></div>`;
 }
 
 /* --- Permissions --- */
-const ADMIN_ONLY=new Set(['delRecu','annulerRecu','delLocataire','delLogement','delImmeuble','addImmeuble','editImmeuble','addLogement','editLogement','editBail','sortie','editDepense','delDepense','delIncident','validerDep','refuserDep','demo','reset','setPin','delPin','editAgence','delLogo','dlReleve','addGest','pinGest','toggleGest','pwAdmin','modesCaisse','confirmerRemise','contesterRemise','remiseAdmin','creerAdmin']);
+const ADMIN_ONLY=new Set(['editUser','delRecu','annulerRecu','delLocataire','delLogement','delImmeuble','addImmeuble','editImmeuble','addLogement','editLogement','editBail','sortie','editDepense','delDepense','delIncident','validerDep','refuserDep','demo','reset','setPin','delPin','editAgence','delLogo','dlReleve','addGest','pinGest','toggleGest','pwAdmin','modesCaisse','confirmerRemise','contesterRemise','remiseAdmin','creerAdmin']);
 const ADMIN_PAGES=new Set(['journal','parametres','immeubles']);
 function stripAdmin(root){if(isAdmin())return;root.querySelectorAll('[data-a]').forEach(el=>{if(ADMIN_ONLY.has(el.dataset.a))el.remove();});root.querySelectorAll('#importFile,#logoFile,#autoRecu').forEach(el=>{(el.closest('label')||el).remove();});}
 
@@ -1640,7 +1659,7 @@ document.addEventListener('submit',e=>{
   if(e.target.id!=='lockForm')return;
   e.preventDefault();
   if(compromis())return;
-  if(comptes()){if(LOGIN.mode==='secours')secours(document.getElementById('recIn').value,document.getElementById('newPw').value);else{const p=document.getElementById('pinIn');if(p&&p.value)connexion(p.value);}return;}
+  if(comptes()){if(LOGIN.mode==='secours')secours(document.getElementById('recIn').value,document.getElementById('newPw').value);else connexion(document.getElementById('loginIn')?.value,document.getElementById('pinIn')?.value);return;}
   const i=document.getElementById('pinIn');
   if(hashPin(i.value)===db.settings.pin){state.unlocked=true;i.value='';saveUi();checkLock();}
   else{i.value='';toast('Code incorrect');}
