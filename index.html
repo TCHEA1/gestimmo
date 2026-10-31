@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f4c3a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
 <title>GestImmo — Gestion locative</title>
 <style>
 *{box-sizing:border-box}
@@ -99,6 +102,12 @@ table.rt{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;
 .recu-b .row{padding:4px 0}
 .recu-l{border-top:1px dashed #d1d5db;border-bottom:1px dashed #d1d5db;margin:8px 0;padding:6px 0}
 .recu-t{font-size:17px;font-weight:700}
+.doc-brand{display:flex;gap:12px;align-items:center;font-size:13px;color:#4b5563;margin:6px 0}.doc-brand img{max-height:56px;max-width:110px;border-radius:6px;background:#fff}.doc-brand b{color:#0f4c3a;font-size:15px}
+.brand{display:flex;align-items:center;gap:8px;overflow:hidden;text-overflow:ellipsis}.brand-logo{height:30px;width:30px;object-fit:contain;background:#fff;border-radius:6px}
+.recu-logo{height:44px;width:44px;object-fit:contain;background:#fff;border-radius:8px;margin-right:12px}
+.nb{background:#dc2626;color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;margin-left:4px}
+.msg{background:#f0fdf4;border-radius:10px;padding:10px 12px;font-size:14px;margin:6px 0}
+details summary{cursor:pointer;margin-top:6px}
 .hidden-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
 @media(max-width:959px){
   .rt thead{display:none}
@@ -129,7 +138,7 @@ table.rt{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;
 /* ===== GestImmo v2 — gestion locative ===== */
 const SCRIPT=document.currentScript.textContent;
 const STYLE=document.querySelector('style').textContent;
-const NAV=[['dash','🏠','Accueil'],['immeubles','🏢','Immeubles'],['locataires','👥','Locataires'],['loyers','💰','Loyers'],['depenses','🧾','Dépenses'],['incidents','🛠️','Incidents'],['rapports','📊','Rapports'],['parametres','⚙️','Paramètres']];
+const NAV=[['dash','🏠','Accueil'],['immeubles','🏢','Immeubles'],['locataires','👥','Locataires'],['loyers','💰','Loyers'],['relances','📣','Relances'],['depenses','🧾','Dépenses'],['incidents','🛠️','Incidents'],['rapports','📊','Rapports'],['parametres','⚙️','Paramètres']];
 document.body.insertAdjacentHTML('afterbegin',`<header class="top"><b class="brand">🏢 GestImmo</b><div class="topr"><select id="immSel" aria-label="Immeuble"></select><button class="ghost sm hidden" id="lockBtn" data-a="lock" title="Verrouiller">🔒</button></div></header>
 <nav>${NAV.map(n=>`<button data-a="goto" data-id="${n[0]}">${n[1]} ${n[2]}</button>`).join('')}</nav>
 <main id="app"></main>
@@ -463,7 +472,7 @@ function listeLocataires(){
   }),'Aucun locataire trouvé.');
 }
 function pageLocataires(){
-  return `<div class="row"><h2>Locataires (${locVisibles().length})</h2><button class="primary sm" data-a="addLocataire">+ Locataire</button></div>
+  return `<div class="row"><h2>Locataires (${locVisibles().length})</h2><div class="btns" style="margin:0"><button class="sm ghost" data-a="csvLocataires">⬇ Export Excel</button><button class="primary sm" data-a="addLocataire">+ Locataire</button></div></div>
   <input id="search" class="search" placeholder="Rechercher un nom ou un numéro…" value="${esc(state.search)}">
   <div id="liste">${listeLocataires()}</div>`;
 }
@@ -487,6 +496,7 @@ function pageFiche(){
       ${arrB?`<button class="sm" data-a="regler" data-id="${arrB.id}">Régler les arriérés</button>`:''}
       ${t.tel?`<a class="btn wa sm" href="${esc(waLink(t.tel,'Bonjour '+t.nom+','))}" target="_blank" rel="noopener">WhatsApp</a>`:''}
       <button class="sm ghost" data-a="editLocataire" data-id="${t.id}">Modifier</button>
+      ${actif?`<button class="sm" data-a="contrat" data-id="${actif.id}">📄 Contrat de bail</button>`:''}
       ${actif?`<button class="sm ghost" data-a="editBail" data-id="${actif.id}">Modifier le bail</button><button class="sm" data-a="sortie" data-id="${actif.id}">Enregistrer la sortie</button>`:''}
       <button class="sm danger" data-a="delLocataire" data-id="${t.id}">Supprimer</button>
     </div>
@@ -577,6 +587,7 @@ function pageRapports(){
   ${tbl([['Mois'],['Attendu','n'],['Encaissé','n'],['Impayés','n'],['Dépenses','n'],['Net','n']],rows.map(r=>[moisLabel(r.m),fcfa(r.a),fcfa(r.e),r.im?`<span class="neg">${fcfa(r.im)}</span>`:fcfa(0),fcfa(r.dp),`<span class="${r.net>=0?'ok':'neg'}">${fcfa(r.net)}</span>`]),'',
     ['Total',fcfa(T('a')),fcfa(T('e')),fcfa(T('im')),fcfa(T('dp')),fcfa(T('net'))])}
   <div class="row"><h3>Situation des locataires</h3><button class="sm ghost" data-a="csvSituation">⬇ Export Excel</button></div>
+  ${releveSection()}
   ${tbl([['Locataire'],['Logement'],['Loyer','n'],['Mois impayés','n'],['Arriérés','n'],['Caution','n']],sit.map(({b,a})=>[`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(bailNom(b))}</button>${b.fin?' <span class="badge">Parti</span>':''}`,esc(logNom(b.logementId)),fcfa(montantDu(b,curMois())),String(a.n),a.tot?`<span class="neg">${fcfa(a.tot)}</span>`:'<span class="ok">À jour</span>',fcfa(b.caution)]),'Aucun locataire.')}`;
 }
 
@@ -586,6 +597,14 @@ function pageParametres(){
     <div class="card"><h3 style="margin-top:0">🔒 Sécurité</h3>
       ${db.settings.pin?`<p>Code PIN <span class="badge ok">Activé</span></p><p class="muted">L’application demande le code à l’ouverture.</p><div class="btns"><button class="sm" data-a="setPin">Changer le code</button><button class="sm ghost" data-a="lock">Verrouiller maintenant</button><button class="sm danger" data-a="delPin">Désactiver</button></div>`
       :`<p class="muted">Protégez l’accès à l’application avec un code PIN de 4 à 8 chiffres.</p><button class="primary sm" data-a="setPin">Activer un code PIN</button>`}
+    </div>
+    <div class="card"><h3 style="margin-top:0">🏷️ Votre agence / entreprise</h3>
+      ${AG().nom||AG().logo?brandHtml():'<p class="muted">Ajoutez votre nom, vos coordonnées et votre logo : ils apparaîtront sur les reçus, contrats et relevés.</p>'}
+      ${AG().commission?`<p class="muted small">Commission de gestion : ${AG().commission} %</p>`:''}
+      <div class="btns"><button class="sm primary" data-a="editAgence">Modifier les informations</button><label class="btn sm ghost" style="position:relative;margin:0">🖼️ ${AG().logo?'Changer le logo':'Ajouter un logo'}<input type="file" id="logoFile" accept="image/*" class="hidden-input"></label>${AG().logo?'<button class="sm danger" data-a="delLogo">Retirer le logo</button>':''}</div>
+    </div>
+    <div class="card"><h3 style="margin-top:0">📲 Application</h3>
+      ${INSTALL?'<p class="muted">Installez GestImmo sur cet appareil : icône sur l’écran d’accueil, ouverture en plein écran, fonctionne même sans internet.</p><button class="primary sm" data-a="installer">📲 Installer l’application</button>':window.matchMedia&&matchMedia('(display-mode: standalone)').matches?'<p class="ok-msg">✅ Application installée sur cet appareil.</p>':'<p class="muted">Pour installer GestImmo comme une application : ouvrez le site dans Chrome, puis menu ⋮ → <b>Ajouter à l’écran d’accueil</b> (ou <b>Installer l’application</b>).</p>'}
     </div>
     <div class="card"><h3 style="margin-top:0">🧾 Reçus</h3>
       <label class="chk"><input type="checkbox" id="autoRecu" ${db.settings.autoRecu!==false?'checked':''}> Afficher le reçu automatiquement après chaque paiement</label>
@@ -601,10 +620,10 @@ function pageParametres(){
       </div>
     </div>
   </div>
-  <div class="card"><h3 style="margin-top:0">ℹ️ GestImmo v2</h3><p class="muted">${db.immeubles.length} immeuble(s) · ${db.logements.length} logement(s) · ${db.locataires.length} locataire(s) · ${db.paiements.length} paiement(s) · ${db.depenses.length} dépense(s) · ${db.incidents.length} incident(s)</p></div>`;
+  <div class="card"><h3 style="margin-top:0">ℹ️ GestImmo v4</h3><p class="muted">${db.immeubles.length} immeuble(s) · ${db.logements.length} logement(s) · ${db.locataires.length} locataire(s) · ${db.paiements.length} paiement(s) · ${db.depenses.length} dépense(s) · ${db.incidents.length} incident(s)</p></div>`;
 }
 
-const PAGES={dash:pageDash,immeubles:pageImmeubles,locataires:pageLocataires,fiche:pageFiche,loyers:pageLoyers,depenses:pageDepenses,incidents:pageIncidents,rapports:pageRapports,parametres:pageParametres};
+const PAGES={dash:pageDash,immeubles:pageImmeubles,locataires:pageLocataires,fiche:pageFiche,loyers:pageLoyers,depenses:pageDepenses,incidents:pageIncidents,rapports:pageRapports,parametres:pageParametres,relances:pageRelances};
 function render(){
   PIDX=null;
   if(state.imm!=='all'&&!imm(state.imm))state.imm='all';
@@ -612,6 +631,9 @@ function render(){
   s.innerHTML=`<option value="all">Tous les immeubles</option>`+db.immeubles.map(i=>`<option value="${i.id}" ${i.id===state.imm?'selected':''}>${esc(i.nom)}</option>`).join('');
   s.classList.toggle('hidden',db.immeubles.length<2);
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.id===(state.page==='fiche'?'locataires':state.page)));
+  const nr=db.logements.length?aRelancer().filter(r=>r.type!=='avant').length:0,nb=document.querySelector('nav [data-id=relances]');
+  if(nb)nb.innerHTML=`📣 Relances${nr?` <span class="nb">${nr}</span>`:''}`;
+  const br=document.querySelector('.brand');if(br)br.innerHTML=AG().logo?`<img src="${AG().logo}" class="brand-logo" alt=""> ${esc(AG().nom||'GestImmo')}`:`🏢 ${esc(AG().nom||'GestImmo')}`;
   document.getElementById('ctip').classList.add('hidden');
   document.getElementById('app').innerHTML=(PAGES[state.page]||pageDash)();
   checkLock();
@@ -853,13 +875,13 @@ function recuData(rid){
     promesse:(()=>{const x=ps[ps.length-1],du=montantDu(b,x.mois),r=Math.max(0,du-payeBail(b.id,x.mois)),d=accordDate(b,x.mois);return r>0&&d?{m:x.mois,r,d}:null;})()};
 }
 function recuTexte(R){
-  return `*REÇU DE PAIEMENT N° ${R.num}*\n${R.im.nom||''}\n\nLocataire : ${R.t?.nom||''}\nLogement : ${R.l?.nom||''}\nMontant reçu : *${fcfa(R.tot)}*\n\nDétail :\n${R.lignes.map(x=>`• ${moisLabel(x.m)} : ${fcfa(x.amt)}${x.solde?' ✔':` (reste ${fcfa(x.reste)})`}`).join('\n')}\n\nPayé le ${fmtDate(R.date)} par ${R.mode}${R.ref?' (réf. '+R.ref+')':''}\n${R.promesse?`🤝 Reste à payer : ${fcfa(R.promesse.r)} (loyer ${deM(R.promesse.m)}) au plus tard le ${fmtDate(R.promesse.d)}\n`:''}${R.jusqua?`✅ Loyer payé jusqu’à : ${moisLabel(R.jusqua)}`:''}${R.arr?`\n⚠️ Reste dû : ${fcfa(R.arr)}`:''}\nCode de vérification : ${R.code}${R.im.proprietaire?'\n\nLe bailleur : '+R.im.proprietaire:''}\nMerci !`;
+  return `*REÇU DE PAIEMENT N° ${R.num}*\n${R.im.nom||''}\n\nLocataire : ${R.t?.nom||''}\nLogement : ${R.l?.nom||''}\nMontant reçu : *${fcfa(R.tot)}*\n\nDétail :\n${R.lignes.map(x=>`• ${moisLabel(x.m)} : ${fcfa(x.amt)}${x.solde?' ✔':` (reste ${fcfa(x.reste)})`}`).join('\n')}\n\nPayé le ${fmtDate(R.date)} par ${R.mode}${R.ref?' (réf. '+R.ref+')':''}\n${R.promesse?`🤝 Reste à payer : ${fcfa(R.promesse.r)} (loyer ${deM(R.promesse.m)}) au plus tard le ${fmtDate(R.promesse.d)}\n`:''}${R.jusqua?`✅ Loyer payé jusqu’à : ${moisLabel(R.jusqua)}`:''}${R.arr?`\n⚠️ Reste dû : ${fcfa(R.arr)}`:''}\nCode de vérification : ${R.code}${R.im.proprietaire?'\n\nLe bailleur : '+R.im.proprietaire:''}${AG().nom?'\n'+AG().nom+(AG().tel?' — '+AG().tel:''):''}\nMerci !`;
 }
 A.recu=rid=>{
   const R=recuData(rid);if(!R)return toast('Reçu introuvable');
   modal('Reçu de paiement',
     `<div class="recu">
-      <div class="recu-h"><div><b>REÇU DE PAIEMENT</b><div class="small">N° ${esc(R.num)}</div></div><div class="recu-ok">✔ PAYÉ</div></div>
+      <div class="recu-h">${AG().logo?`<img src="${AG().logo}" class="recu-logo" alt="">`:''}<div style="flex:1"><b>REÇU DE PAIEMENT</b><div class="small">N° ${esc(R.num)}${AG().nom?' · '+esc(AG().nom):''}</div></div><div class="recu-ok">✔ PAYÉ</div></div>
       <div class="recu-b">
         <p class="muted" style="margin-top:0">${esc(R.im.nom||'')}${R.im.adresse?' — '+esc(R.im.adresse):''}</p>
         <div class="row"><span class="muted">Locataire</span><b>${esc(R.t?.nom)}</b></div>
@@ -886,14 +908,16 @@ A.quittance=pid=>{const p=db.paiements.find(x=>x.id===pid);if(p)A.recu(p.recu||p
 A.copyRecu=async rid=>{try{await navigator.clipboard.writeText(recuTexte(recuData(rid)).replace(/\*/g,''));toast('Texte du reçu copié ✅');}catch(e){toast('Copie impossible ici');}};
 function recuCanvas(R){
   const W=720,pad=36,lh=34,n=R.lignes.length;
-  const H=148+40+3*lh+12+n*lh+10+44+(R.promesse?30:0)+(R.jusqua?30:0)+(R.arr?30:0)+44;
+  const H=148+40+3*lh+12+n*lh+10+44+(R.promesse?30:0)+(R.jusqua?30:0)+(R.arr?30:0)+44+(AG().nom?26:0);
   const c=document.createElement('canvas');c.width=W*2;c.height=H*2;
   const g=c.getContext('2d');g.scale(2,2);
   const F=(w,s)=>`${w} ${s}px system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif`;
   g.fillStyle='#ffffff';g.fillRect(0,0,W,H);
   g.fillStyle='#0f4c3a';g.fillRect(0,0,W,110);
-  g.fillStyle='#ffffff';g.font=F(700,26);g.fillText('REÇU DE PAIEMENT',pad,50);
-  g.font=F(400,17);g.fillText('N° '+R.num+'   ·   '+fmtDate(R.date),pad,82);
+  let hx=pad;
+  if(LOGO){const s=Math.min(70/LOGO.width,70/LOGO.height),w=LOGO.width*s,h=LOGO.height*s;g.fillStyle='#ffffff';g.fillRect(pad-4,20-4,78,78);g.drawImage(LOGO,pad+(70-w)/2,20+(70-h)/2,w,h);hx=pad+90;}
+  g.fillStyle='#ffffff';g.font=F(700,26);g.fillText('REÇU DE PAIEMENT',hx,50);
+  g.font=F(400,17);g.fillText('N° '+R.num+'   ·   '+fmtDate(R.date),hx,82);
   g.fillStyle='#dcfce7';g.beginPath();g.roundRect?g.roundRect(W-pad-120,36,120,40,20):g.rect(W-pad-120,36,120,40);g.fill();
   g.fillStyle='#166534';g.font=F(700,17);g.textAlign='center';g.fillText('✔ PAYÉ',W-pad-60,62);g.textAlign='left';
   let y=148;
@@ -908,7 +932,8 @@ function recuCanvas(R){
   if(R.jusqua){g.fillStyle='#15803d';g.font=F(600,18);g.fillText('✅ Loyer payé jusqu’à '+moisLabel(R.jusqua),pad,y);y+=30;}
   if(R.arr){g.fillStyle='#b91c1c';g.font=F(400,16);g.fillText('Reste dû : '+fcfa(R.arr),pad,y);y+=30;}
   g.fillStyle='#6b7280';g.font=F(400,14);g.fillText('Code de vérification : '+R.code+(R.im.proprietaire?'   ·   Le bailleur : '+R.im.proprietaire:''),pad,H-28);
-  g.textAlign='right';g.fillText('GestImmo',W-pad,H-28);
+  g.textAlign='right';g.fillText(AG().nom?'':'GestImmo',W-pad,H-28);g.textAlign='left';
+  if(AG().nom){g.strokeStyle='#e5e7eb';g.beginPath();g.moveTo(pad,H-80);g.lineTo(W-pad,H-80);g.stroke();g.fillStyle='#0f4c3a';g.font=F(600,15);g.fillText(AG().nom+(AG().tel?'   ·   '+AG().tel:''),pad,H-28-26+0);}
   return c;
 }
 A.shareRecu=async rid=>{
@@ -922,11 +947,11 @@ A.shareRecu=async rid=>{
   saveFile(name,blob,'image/png');
 };
 const docHtml=(title,body)=>`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${title}</title>
-<style>body{font-family:Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#111}h1{font-size:22px;margin:0 0 10px}h2{font-size:17px;margin-top:28px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}td.n,th.n{text-align:right}.tot td{font-weight:bold;background:#f5f5f5}.foot{margin-top:40px;font-size:13px;color:#555}</style></head>
+<style>.doc-brand{display:flex;gap:14px;align-items:center;border-bottom:2px solid #0f4c3a;padding-bottom:12px;margin-bottom:18px;font-size:13px;color:#444}.doc-brand img{max-height:64px;max-width:120px}.doc-brand b{font-size:18px;color:#0f4c3a}table.sig td{border:0;width:50%;vertical-align:top}.small{font-size:12px;color:#666}p{line-height:1.5}body{font-family:Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#111}h1{font-size:22px;margin:0 0 10px}h2{font-size:17px;margin-top:28px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}td.n,th.n{text-align:right}.tot td{font-weight:bold;background:#f5f5f5}.foot{margin-top:40px;font-size:13px;color:#555}</style></head>
 <body>${body}<script>window.onload=function(){window.print();}<\/script></body></html>`;
 A.dlRecu=rid=>{
   const R=recuData(rid);
-  const html=docHtml(`Reçu ${R.num}`,`<h1>REÇU DE PAIEMENT N° ${esc(R.num)}</h1>
+  const html=docHtml(`Reçu ${R.num}`,`${brandHtml()}<h1>REÇU DE PAIEMENT N° ${esc(R.num)}</h1>
 <p>${esc(R.im.nom||'')}<br>${esc(R.im.adresse||'')}</p>
 <p>Je soussigné(e) <b>${esc(R.im.proprietaire||'le bailleur')}</b>, reconnais avoir reçu de <b>${esc(R.t?.nom)}</b>, locataire du logement <b>${esc(R.l?.nom)}</b>, la somme de <b>${fcfa(R.tot)}</b> au titre des loyers suivants :</p>
 <table><tr><th>Période</th><th class="n">Montant</th><th>État</th></tr>${R.lignes.map(x=>`<tr><td>Loyer ${moisLabel(x.m)}</td><td class="n">${fcfa(x.amt)}</td><td>${x.solde?'Soldé':'Partiel (reste '+fcfa(x.reste)+')'}</td></tr>`).join('')}
@@ -993,16 +1018,16 @@ A.delPin=async()=>{if(!await ask('Désactiver le code PIN ?'))return;db.settings
 A.exportJson=()=>saveFile(`gestimmo-${today()}.json`,JSON.stringify(db,null,2),'application/json');
 A.demo=async()=>{
   if(db.logements.length&&!await ask('Remplacer vos données actuelles par la démo ?'))return;
-  db=demoDb();state.imm='all';state.page='dash';state.mois=curMois();save();closeModal();render();
+  db=demoDb();loadLogo();state.imm='all';state.page='dash';state.mois=curMois();save();closeModal();render();
 };
 A.reset=async()=>{
   if(!await ask('Effacer TOUTES les données ? Pensez à exporter une sauvegarde avant.'))return;
-  db=emptyDb();state.imm='all';state.page='dash';save();closeModal();render();
+  db=emptyDb();loadLogo();state.imm='all';state.page='dash';save();closeModal();render();
 };
 function importFile(f){
   const r=new FileReader();
   r.onload=()=>{
-    try{const d=JSON.parse(r.result);if(!Array.isArray(d.logements)||!Array.isArray(d.baux))throw new Error();db=migrate(d);state.imm='all';save();render();toast('Sauvegarde importée ✅');}
+    try{const d=JSON.parse(r.result);if(!Array.isArray(d.logements)||!Array.isArray(d.baux))throw new Error();db=migrate(d);loadLogo();state.imm='all';save();render();toast('Sauvegarde importée ✅');}
     catch(e){toast('Fichier de sauvegarde invalide.');}
   };
   r.readAsText(f);
@@ -1052,6 +1077,8 @@ function demoDb(){
   seq++;const advNum=`${ym.slice(0,4)}-${String(seq).padStart(4,'0')}`;
   for(let i=1;i<=3;i++){const m=shift(ym,i),b1=d.baux[0];d.paiements.push({id:uid(),bailId:'b1',mois:m,montant:montantDu(b1,m),date:`${ym}-02`,mode:'Wave',ref:'Avance 3 mois',num:advNum,recu:'adv1'});}
   d.settings.seq=seq;
+  d.settings.agence={nom:'Agence Les Palmiers Immobilier',tel:'07 00 00 00 00',email:'contact@exemple.ci',adresse:'Cocody, Abidjan',commission:10};
+  d.baux[3].relances=[{date:`${ym}-08`,type:'courtois'}];
   for(let i=0;i<6;i++){
     const m=shift(ym,-i);
     d.depenses.push({id:uid(),immeubleId:'i1',date:`${m}-15`,cat:'Gardiennage',libelle:'Salaire du gardien',montant:50000});
@@ -1067,8 +1094,159 @@ function demoDb(){
   return d;
 }
 
+/* ===================== v4 : agence, contrat, relances, relevé ===================== */
+const AG=()=>db.settings.agence||{};
+let LOGO=null;
+function loadLogo(){LOGO=null;const a=AG();if(a.logo){const i=new Image();i.onload=()=>{LOGO=i;};i.src=a.logo;}}
+function brandHtml(){
+  const a=AG();if(!a.nom&&!a.logo)return '';
+  return `<div class="doc-brand">${a.logo?`<img src="${a.logo}" alt="">`:''}<div><b>${esc(a.nom||'')}</b><div>${[a.adresse,a.tel,a.email].filter(Boolean).map(esc).join(' · ')}</div></div></div>`;
+}
+A.editAgence=()=>{
+  const a=AG();
+  modal('Votre agence / entreprise',
+    fld('Nom de l’agence ou du gestionnaire','nom',a.nom||'','text',false)+fld('Téléphone','tel',a.tel||'','tel',false)+fld('Email','email',a.email||'','email',false)+fld('Adresse','adresse',a.adresse||'','text',false)+
+    num('Commission de gestion (% des loyers encaissés)','commission',a.commission||0,false)+
+    `<p class="muted small">Le nom et le logo apparaissent sur les reçus, contrats et relevés. La commission sert au relevé mensuel du propriétaire (mettez 0 si vous gérez vos propres biens).</p>`,
+    d=>{const c=Number(d.commission)||0;if(c<0||c>100)fail('Commission entre 0 et 100 %');db.settings.agence={...a,nom:d.nom.trim(),tel:d.tel.trim(),email:d.email.trim(),adresse:d.adresse.trim(),commission:c};});
+};
+function setLogo(f){
+  if(!/^image\//.test(f.type))return toast('Choisissez une image');
+  const r=new FileReader();
+  r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,256/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext('2d').drawImage(i,0,0,c.width,c.height);db.settings.agence={...AG(),logo:c.toDataURL('image/png')};loadLogo();save();render();toast('Logo enregistré ✅');};i.onerror=()=>toast('Image illisible');i.src=r.result;};
+  r.readAsDataURL(f);
+}
+A.delLogo=()=>{const a={...AG()};delete a.logo;db.settings.agence=a;loadLogo();save();render();};
+
+/* ---------- Contrat de bail + état des lieux ---------- */
+const PIECES={Studio:['Pièce principale','Coin cuisine','Salle d’eau / WC'],F1:['Séjour / chambre','Cuisine','Salle d’eau / WC'],F2:['Séjour','Chambre','Cuisine','Salle d’eau / WC'],F3:['Séjour','Chambre 1','Chambre 2','Cuisine','Salle d’eau / WC'],F4:['Séjour','Chambre 1','Chambre 2','Chambre 3','Cuisine','Salle(s) d’eau / WC'],F5:['Séjour','Chambre 1','Chambre 2','Chambre 3','Chambre 4','Cuisine','Salle(s) d’eau / WC'],Villa:['Séjour','Chambres','Cuisine','Salles d’eau / WC','Cour / jardin','Garage']};
+const etatLieux=(type,titre)=>`<h2>${titre}</h2><p>Date : ____ / ____ / ________ &nbsp;&nbsp; Index compteur électricité : ____________ &nbsp; Eau : ____________ &nbsp; Nombre de clés remises : ______</p>
+<table><tr><th>Pièce / élément</th><th>Murs & plafond</th><th>Sol</th><th>Portes & fenêtres</th><th>Électricité / plomberie</th><th>Observations</th></tr>
+${(PIECES[type]||['Local principal','Annexe','Sanitaires']).map(p=>`<tr><td>${p}</td><td>B · M · Mv</td><td>B · M · Mv</td><td>B · M · Mv</td><td>B · M · Mv</td><td style="width:28%"></td></tr>`).join('')}</table>
+<p class="small">B = bon état · M = état moyen · Mv = mauvais état (entourer)</p>
+<table class="sig"><tr><td>Le bailleur / gestionnaire</td><td>Le locataire</td></tr><tr><td style="height:70px"></td><td></td></tr></table>`;
+A.contrat=bid=>{
+  const b=db.baux.find(x=>x.id===bid),l=logement(b.logementId),t=locataire(b.locataireId),im=imm(l?.immeubleId)||{},a=AG();
+  const pro=['Local commercial','Bureau'].includes(l?.type);
+  let cl=b.loyer,cc=b.charges||0;(b.revisions||[]).forEach(r=>{if(r.depuis<=curMois()){cl=r.loyer;cc=r.charges;}});
+  const loyer=montantDu(b,curMois()),dur=b.finPrevue?`du ${fmtDate(b.debut)} au ${fmtDate(b.finPrevue)}`:`d’un (1) an à compter du ${fmtDate(b.debut)}`;
+  const html=docHtml(`Contrat de bail — ${t?.nom||''}`,`${brandHtml()}<h1 style="text-align:center">CONTRAT DE BAIL ${pro?'À USAGE PROFESSIONNEL':'À USAGE D’HABITATION'}</h1>
+<h2>Entre les soussignés</h2>
+<p><b>Le bailleur :</b> ${esc(im.proprietaire||'________________________')}${im.contact?', tél. '+esc(im.contact):''}${a.nom?`, représenté par <b>${esc(a.nom)}</b>${a.tel?' ('+esc(a.tel)+')':''}`:''},</p>
+<p><b>Le locataire :</b> ${esc(t?.nom||'')}${t?.profession?', '+esc(t.profession):''}${t?.piece?', pièce d’identité : '+esc(t.piece):''}${t?.tel?', tél. '+esc(t.tel):''}.</p>
+<h2>Article 1 — Objet</h2><p>Le bailleur donne en location au locataire le logement <b>${esc(l?.nom||'')}</b> (${esc(l?.type||'')}, étage ${esc(l?.etage||'')}) situé dans l’immeuble <b>${esc(im.nom||'')}</b>, ${esc(im.adresse||'')}, à usage ${pro?'professionnel':'exclusif d’habitation'}.</p>
+<h2>Article 2 — Durée</h2><p>Le bail est consenti pour une durée ${dur}. Il se renouvelle par tacite reconduction, sauf congé donné par l’une des parties avec un préavis d’au moins trois (3) mois.</p>
+<h2>Article 3 — Loyer et charges</h2><p>Le loyer mensuel est fixé à <b>${fcfa(cl)}</b>${Number(cc)?` auquel s’ajoutent <b>${fcfa(cc)}</b> de charges, soit un total de <b>${fcfa(loyer)}</b>`:''} par mois, payable d’avance au plus tard le <b>${b.jour}</b> de chaque mois, en espèces, par Mobile Money ou par virement. Un reçu numéroté est remis pour chaque paiement.</p>
+<h2>Article 4 — Dépôt de garantie (caution)</h2><p>Le locataire verse ce jour une caution de <b>${fcfa(b.caution)}</b>. Elle ne produit pas d’intérêts et sera restituée à la sortie, déduction faite des sommes restant dues et du coût des réparations locatives constatées par l’état des lieux de sortie.</p>
+<h2>Article 5 — Obligations du locataire</h2><p>Le locataire s’engage à payer le loyer aux échéances convenues ; à user paisiblement des lieux ; à les entretenir et à effectuer les menues réparations ; à ne pas sous-louer ni céder le bail sans accord écrit du bailleur ; à ne pas transformer les lieux sans autorisation ; à payer ses consommations d’eau et d’électricité ; à laisser visiter les lieux pour les travaux nécessaires.</p>
+<h2>Article 6 — Obligations du bailleur</h2><p>Le bailleur s’engage à délivrer un logement en bon état d’usage, à assurer au locataire une jouissance paisible et à effectuer les grosses réparations.</p>
+<h2>Article 7 — Résiliation</h2><p>À défaut de paiement du loyer à son échéance et après une mise en demeure restée sans effet, le bail pourra être résilié dans les conditions prévues par la loi.</p>
+<h2>Article 8 — État des lieux</h2><p>Un état des lieux est établi contradictoirement à l’entrée et à la sortie du locataire (voir annexe).</p>
+<p style="margin-top:24px">Fait à ______________________, le ${fmtDate(today())}, en deux (2) exemplaires originaux.</p>
+<table class="sig"><tr><td>Le bailleur (lu et approuvé)</td><td>Le locataire (lu et approuvé)</td></tr><tr><td style="height:90px"></td><td></td></tr></table>
+<p class="small">Modèle indicatif : à adapter à votre situation et à faire vérifier si besoin par un professionnel du droit.</p>
+<div style="page-break-before:always"></div><h1>ANNEXE — ÉTATS DES LIEUX</h1><p>Logement ${esc(l?.nom||'')} · ${esc(im.nom||'')} · Locataire : ${esc(t?.nom||'')}</p>
+${etatLieux(l?.type,'État des lieux d’entrée')}<div style="page-break-before:always"></div>${etatLieux(l?.type,'État des lieux de sortie')}`);
+  saveFile(`contrat-bail-${(t?.nom||'locataire').replace(/\s+/g,'-')}.html`,html,'text/html');
+};
+
+/* ---------- Relances ---------- */
+const TONS={courtois:'Courtois',ferme:'Ferme',dernier:'Dernier rappel'};
+function aRelancer(){
+  const out=[],cur=curMois();
+  BAUX().forEach(b=>{
+    const t=locataire(b.locataireId);
+    const a=arrieres(b);
+    if(a.tot>0){
+      const d0=`${a.list[0].m}-${String(Math.min(28,b.jour)).padStart(2,'0')}`;
+      const promesseKo=a.list.some(x=>accordDate(b,x.m)&&!accordActif(b,x.m));
+      out.push({b,t,type:'retard',montant:a.tot,jours:-jours(d0),detail:`${a.n} mois : ${a.list.map(x=>moisLabel(x.m)).join(', ')}`,promesseKo});
+    }
+    accords([b]).filter(x=>x.ok&&jours(x.d)<=3).forEach(x=>out.push({b,t,type:'promesse',montant:x.r,jours:jours(x.d),detail:`Reste ${deM(x.m)} promis le ${fmtDate(x.d)}`,m:x.m,d:x.d}));
+    if(!b.fin&&bailActif(b,cur)){
+      const s=statutBail(b,cur),ech=`${cur}-${String(Math.min(28,b.jour)).padStart(2,'0')}`,j=jours(ech);
+      if(s.statut==='attente'&&j>=0&&j<=5)out.push({b,t,type:'avant',montant:s.reste,jours:j,detail:`Échéance ${deM(cur)} le ${fmtDate(ech)}`});
+    }
+  });
+  const ord={retard:0,promesse:1,avant:2};
+  return out.sort((x,y)=>ord[x.type]-ord[y.type]||y.montant-x.montant);
+}
+function msgRelance(r){
+  const n=r.t?.nom||'',lg=logNom(r.b.logementId),sig=AG().nom?`\n\n${AG().nom}${AG().tel?' — '+AG().tel:''}`:(imm(logement(r.b.logementId)?.immeubleId)?.proprietaire?`\n\n${imm(logement(r.b.logementId)?.immeubleId).proprietaire}`:'');
+  if(r.type==='avant')return `Bonjour ${n}, petit rappel amical : le loyer ${deM(curMois())} pour le logement ${lg} (${fcfa(r.montant)}) arrive à échéance le ${fmtDate(`${curMois()}-${String(Math.min(28,r.b.jour)).padStart(2,'0')}`)}. Vous pouvez payer en espèces ou par Mobile Money. Merci et bonne journée.${sig}`;
+  if(r.type==='promesse')return `Bonjour ${n}, comme convenu, le reste du loyer ${deM(r.m)} pour ${lg}, soit ${fcfa(r.montant)}, est attendu le ${fmtDate(r.d)}. Merci de votre ponctualité.${sig}`;
+  const ton=state.ton||'courtois';
+  if(ton==='courtois')return `Bonjour ${n}, sauf erreur de notre part, nous n’avons pas encore reçu le règlement de ${fcfa(r.montant)} pour le logement ${lg} (${r.detail}). Merci de bien vouloir régulariser dès que possible. Si vous avez déjà payé, merci de ne pas tenir compte de ce message.${sig}`;
+  if(ton==='ferme')return `Bonjour ${n}, malgré nos précédents rappels, la somme de ${fcfa(r.montant)} reste impayée pour le logement ${lg} (${r.detail}). Nous vous demandons de régulariser votre situation sous 72 heures. Merci de nous contacter pour tout arrangement.${sig}`;
+  return `Bonjour ${n}, DERNIER RAPPEL avant mise en demeure : vous restez devoir ${fcfa(r.montant)} au titre des loyers du logement ${lg} (${r.detail}). Sans règlement ou accord sous 7 jours, nous serons contraints d’engager la procédure prévue au contrat de bail.${sig}`;
+}
+const derniereRelance=b=>(b.relances||[]).slice(-1)[0];
+function logRelance(bid,type){const b=db.baux.find(x=>x.id===bid);if(!b)return;b.relances=b.relances||[];b.relances.push({date:today(),type:type==='retard'?(state.ton||'courtois'):type});save();setTimeout(render,300);}
+function pageRelances(){
+  const L=aRelancer(),T={retard:'En retard',promesse:'Promesse à rappeler',avant:'Échéance proche'},C={retard:'neg',promesse:'warn',avant:''};
+  const tot=sum(L.filter(r=>r.type==='retard'),r=>r.montant);
+  return `<div class="row"><h2>Relances</h2><span class="muted">${L.length} relance(s) à faire${tot?` · <b class="neg">${fcfa(tot)}</b> en retard`:''}</span></div>
+  <div class="row" style="justify-content:flex-start"><span class="muted">Ton des messages de retard :</span><div class="seg">${Object.entries(TONS).map(([k,v])=>`<button class="${(state.ton||'courtois')===k?'on':''}" data-a="ton" data-id="${k}">${v}</button>`).join('')}</div></div>
+  ${L.length?L.map(r=>{
+    const dr=derniereRelance(r.b),msg=msgRelance(r);
+    return `<div class="card"><div class="row"><div><button class="linkbtn" data-a="fiche" data-id="${r.b.locataireId}">${esc(r.t?.nom)}</button> · ${esc(logNom(r.b.logementId))} <span class="badge ${C[r.type]}">${T[r.type]}${r.type==='retard'?` · ${r.jours} j`:r.type==='avant'?` · dans ${r.jours} j`:''}</span>${r.promesseKo?' <span class="badge neg">Promesse non tenue</span>':''}</div><b class="${r.type==='retard'?'neg':''}">${fcfa(r.montant)}</b></div>
+    <p class="muted small">${esc(r.detail)}${dr?` · Dernière relance : ${fmtDate(dr.date)}${dr.type&&TONS[dr.type]?' ('+TONS[dr.type].toLowerCase()+')':''}`:' · Jamais relancé'}${(r.b.relances||[]).length>1?` · ${(r.b.relances||[]).length} relances au total`:''}</p>
+    <details><summary class="muted small">Voir le message</summary><p class="msg">${esc(msg).replace(/\n/g,'<br>')}</p></details>
+    <div class="btns">${r.t?.tel?`<a class="btn wa sm" href="${esc(waLink(r.t.tel,msg))}" target="_blank" rel="noopener" data-log="${r.b.id}|${r.type}">WhatsApp</a><a class="btn sm ghost" href="sms:${esc(r.t.tel)}?body=${encodeURIComponent(msg)}" data-log="${r.b.id}|${r.type}">SMS</a>`:'<span class="muted small">Pas de téléphone</span>'}
+    <button class="sm ghost" data-a="copyMsg" data-id="${r.b.id}|${r.type}">📋 Copier</button>${r.type!=='avant'?`<button class="sm primary" data-a="encaisser" data-id="${r.b.id}">Encaisser</button>`:''}</div></div>`;
+  }).join(''):'<div class="card"><p class="ok-msg">✅ Aucune relance à faire. Tous les locataires sont à jour.</p></div>'}`;
+}
+A.ton=v=>{state.ton=v;render();};
+A.copyMsg=async k=>{const [bid,type]=k.split('|');const r=aRelancer().find(x=>x.b.id===bid&&x.type===type);if(!r)return;try{await navigator.clipboard.writeText(msgRelance(r));logRelance(bid,type);toast('Message copié ✅');}catch(e){toast('Copie impossible ici');}};
+
+/* ---------- Relevé mensuel propriétaire ---------- */
+function releve(imId,ym){
+  const im=imm(imId),lids=new Set(db.logements.filter(l=>l.immeubleId===imId).map(l=>l.id)),bids=new Set(db.baux.filter(b=>lids.has(b.logementId)).map(b=>b.id));
+  const rc=recus(db.paiements.filter(p=>bids.has(p.bailId)&&p.date.slice(0,7)===ym));
+  const deps=db.depenses.filter(d=>d.immeubleId===imId&&d.date.slice(0,7)===ym);
+  const enc=sum(rc,r=>r.tot),dep=sum(deps,d=>d.montant),pct=Number(AG().commission)||0,com=Math.round(enc*pct/100);
+  const imp=sum(db.baux.filter(b=>bids.has(b.id)),b=>arrieres(b).tot);
+  return {im,rc,deps,enc,dep,pct,com,net:enc-dep-com,imp};
+}
+function releveTexte(R,ym){
+  return `*RELEVÉ DE GESTION — ${moisLabel(ym).toUpperCase()}*\n${R.im.nom}\n\nLoyers encaissés : ${fcfa(R.enc)} (${R.rc.length} reçu(s))\nDépenses : − ${fcfa(R.dep)}${R.pct?`\nCommission de gestion (${R.pct} %) : − ${fcfa(R.com)}`:''}\n*Net à reverser : ${fcfa(R.net)}*${R.imp?`\n\nImpayés en cours : ${fcfa(R.imp)}`:''}${AG().nom?`\n\n${AG().nom}`:''}`;
+}
+function releveSection(){
+  const ym=state.mois,list=(state.imm==='all'?db.immeubles:db.immeubles.filter(i=>i.id===state.imm));
+  return `<div class="row"><h3>Relevé mensuel du propriétaire</h3>${monthNav()}</div>
+  ${tbl([['Immeuble'],['Encaissé','n'],['Dépenses','n'],[`Commission${AG().commission?` (${AG().commission} %)`:''}`,'n'],['Net à reverser','n'],['','act']],list.map(im=>{const R=releve(im.id,ym);return [`<b>${esc(im.nom)}</b><div class="muted small">${esc(im.proprietaire||'')}</div>`,fcfa(R.enc),fcfa(R.dep),fcfa(R.com),`<b class="${R.net>=0?'ok':'neg'}">${fcfa(R.net)}</b>`,
+    `${im.contact?`<a class="btn wa sm" href="${esc(waLink(im.contact,releveTexte(R,ym)))}" target="_blank" rel="noopener">WhatsApp</a>`:''}<button class="sm ghost" data-a="dlReleve" data-id="${im.id}">⬇ Relevé</button>`];}),'Aucun immeuble.')}
+  ${AG().commission?'':'<p class="muted small">Astuce : indiquez votre commission de gestion dans Paramètres → Votre agence pour la déduire automatiquement.</p>'}`;
+}
+A.dlReleve=imId=>{
+  const ym=state.mois,R=releve(imId,ym);
+  const html=docHtml(`Relevé ${R.im.nom} ${ym}`,`${brandHtml()}<h1>RELEVÉ DE GESTION — ${moisLabel(ym).toUpperCase()}</h1>
+<p><b>${esc(R.im.nom)}</b> — ${esc(R.im.adresse||'')}<br>Propriétaire : ${esc(R.im.proprietaire||'—')} · Édité le ${fmtDate(today())}</p>
+<table><tr><td>Loyers encaissés</td><td class="n">${fcfa(R.enc)}</td></tr><tr><td>Dépenses</td><td class="n">− ${fcfa(R.dep)}</td></tr>${R.pct?`<tr><td>Commission de gestion (${R.pct} %)</td><td class="n">− ${fcfa(R.com)}</td></tr>`:''}<tr class="tot"><td>Net à reverser au propriétaire</td><td class="n">${fcfa(R.net)}</td></tr></table>
+<h2>Détail des encaissements</h2><table><tr><th>Reçu</th><th>Date</th><th>Locataire</th><th>Période</th><th class="n">Montant</th></tr>${R.rc.map(r=>{const b=db.baux.find(x=>x.id===r.bailId);return `<tr><td>${esc(r.num)}</td><td>${fmtDate(r.date)}</td><td>${esc(bailNom(b))} (${esc(logNom(b?.logementId))})</td><td>${periode(r)}</td><td class="n">${fcfa(r.tot)}</td></tr>`;}).join('')||'<tr><td colspan="5">Aucun encaissement</td></tr>'}</table>
+<h2>Détail des dépenses</h2><table><tr><th>Date</th><th>Catégorie</th><th>Libellé</th><th class="n">Montant</th></tr>${R.deps.map(d=>`<tr><td>${fmtDate(d.date)}</td><td>${esc(d.cat)}</td><td>${esc(d.libelle)}</td><td class="n">${fcfa(d.montant)}</td></tr>`).join('')||'<tr><td colspan="4">Aucune dépense</td></tr>'}</table>
+${R.imp?`<p>Impayés en cours sur l’immeuble : <b>${fcfa(R.imp)}</b></p>`:''}
+<table class="sig"><tr><td>Le gestionnaire</td><td>Le propriétaire</td></tr><tr><td style="height:70px"></td><td></td></tr></table>`);
+  saveFile(`releve-${R.im.nom.replace(/\s+/g,'-')}-${ym}.html`,html,'text/html');
+};
+A.csvLocataires=()=>{
+  const rows=[['Nom','Téléphone','Email','Profession','Pièce d’identité','Logement','Immeuble','Entrée','Loyer','Payé jusqu’à','Arriérés']];
+  locVisibles().forEach(t=>{const b=db.baux.find(x=>x.locataireId===t.id&&!x.fin)||db.baux.filter(x=>x.locataireId===t.id).slice(-1)[0];const l=b?logement(b.logementId):null;
+    rows.push([t.nom,t.tel||'',t.email||'',t.profession||'',t.piece||'',l?.nom||'',imm(l?.immeubleId)?.nom||'',b?fmtDate(b.debut):'',b?montantDu(b,curMois()):'',b&&payeJusqua(b)?moisLabel(payeJusqua(b)):'',b?sum(db.baux.filter(x=>x.locataireId===t.id),x=>arrieres(x).tot):0]);});
+  saveFile(`locataires-${today()}.csv`,toCsv(rows),'text/csv');
+};
+
+/* ---------- Application installable (PWA) ---------- */
+let INSTALL=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();INSTALL=e;render();});
+A.installer=async()=>{if(!INSTALL)return;INSTALL.prompt();try{await INSTALL.userChoice;}catch(e){}INSTALL=null;render();};
+if('serviceWorker' in navigator&&/github\.io$|onrender\.com$/.test(location.hostname)){navigator.serviceWorker.register('sw.js').catch(()=>{});}
+loadLogo();
+
 /* ---------- Écouteurs ---------- */
 document.addEventListener('click',e=>{
+  const lg=e.target.closest('a[data-log]');
+  if(lg){const [bid,type]=lg.dataset.log.split('|');logRelance(bid,type);return;}
   const el=e.target.closest('[data-a]');
   if(el){const fn=A[el.dataset.a];if(fn){e.preventDefault();fn(el.dataset.id);}return;}
   chartTip(e);
@@ -1084,6 +1262,7 @@ document.addEventListener('change',e=>{
   if(e.target.id==='immSel'){state.imm=e.target.value;render();}
   if(e.target.id==='autoRecu'){db.settings.autoRecu=e.target.checked;save();toast(e.target.checked?'Reçu automatique activé':'Reçu automatique désactivé');}
   if(e.target.id==='importFile'&&e.target.files[0])importFile(e.target.files[0]);
+  if(e.target.id==='logoFile'&&e.target.files[0])setLogo(e.target.files[0]);
 });
 document.addEventListener('submit',e=>{
   if(e.target.id!=='lockForm')return;
