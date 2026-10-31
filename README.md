@@ -17,6 +17,7 @@ Logiciel de gestion locative pour immeubles et agences, sur téléphone et ordin
 - Logo et coordonnées de l'agence sur tous les documents
 - **Réparations avec preuves** : motif, matériel acheté, main d’œuvre, photos avant/après et reçus, fiche imprimable
 - Dépenses avec justificatifs, tableau de bord, rapports annuels, exports Excel
+- **Comptes Super admin / Gestionnaire** : permissions, journal d'activité signé, détection des reçus supprimés ou modifiés, caisse du gestionnaire (argent à remettre), dépenses à valider
 - Code PIN, sauvegarde / import des données
 
 Les données sont enregistrées dans le navigateur de l'appareil : exportez régulièrement une sauvegarde (Paramètres).
