@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f4c3a">
+<title>GestImmo — Gestion locative</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f3f5f7;color:#1f2937;font-size:15px;padding-bottom:40px}
+.hidden{display:none!important}
+.top{background:#0f4c3a;color:#fff;height:52px;padding:0 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:0;z-index:8}
+.brand{font-size:18px;white-space:nowrap}
+.topr{display:flex;gap:8px;align-items:center}
+#immSel{width:auto;max-width:180px;padding:6px 8px;font-size:13px}
+nav{display:flex;overflow-x:auto;background:#fff;border-bottom:1px solid #e5e7eb;position:sticky;top:52px;z-index:7}
+nav button{flex:0 0 auto;border:0;background:none;padding:12px 13px;font-size:14px;color:#6b7280;border-bottom:3px solid transparent;cursor:pointer;border-radius:0}
+nav button.on{color:#0f4c3a;border-bottom-color:#0f4c3a;font-weight:600}
+main{padding:14px;max-width:780px;margin:0 auto}
+h2{font-size:20px;margin:8px 0}
+h3{font-size:16px;margin:20px 0 8px}
+.card{background:#fff;border-radius:12px;padding:14px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.muted{color:#6b7280;font-size:13px;margin:4px 0}
+.small{font-size:12px}
+.big{font-size:22px;font-weight:700;margin:4px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.kpi{background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.kv{font-size:17px;font-weight:700;margin-top:4px}
+.ok{color:#15803d}
+.neg{color:#b91c1c}
+.badge{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;background:#e5e7eb;color:#374151;white-space:nowrap}
+.badge.ok{background:#dcfce7;color:#166534}
+.badge.neg{background:#fee2e2;color:#991b1b}
+.badge.warn{background:#fef3c7;color:#92400e}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.btns.col{flex-direction:column}
+button,.btn{font:inherit;border:0;border-radius:8px;padding:10px 14px;background:#e5e7eb;color:#111;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}
+.primary{background:#0f4c3a;color:#fff}
+.danger{background:#fee2e2;color:#991b1b}
+.ghost{background:#f3f4f6}
+.wa{background:#25d366;color:#fff}
+.sm{padding:6px 11px;font-size:13px}
+.linkbtn{background:none;color:#0f4c3a;padding:0;text-decoration:underline;font-size:inherit;font-weight:600;text-align:left}
+input,select,textarea{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font:inherit;background:#fff;color:#111}
+.search{margin:10px 0}
+label{display:block;font-size:13px;color:#374151;margin:10px 0}
+label input,label select,label textarea{margin-top:4px}
+.chk{display:flex;gap:8px;align-items:center}
+.chk input{width:auto;margin:0}
+.mnav{display:flex;align-items:center;gap:8px;margin:8px 0;max-width:420px}
+.mnav input{width:auto;flex:1;text-align:center}
+.mnav button{padding:8px 14px}
+.seg{display:inline-flex;background:#e5e7eb;border-radius:9px;padding:3px;gap:3px}
+.seg button{padding:6px 12px;font-size:13px;background:none}
+.seg button.on{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.hero{background:linear-gradient(135deg,#0f4c3a,#14795c);color:#fff}
+.hero button{background:#fff;color:#0f4c3a}
+.hero .ghost{background:rgba(255,255,255,.2);color:#fff}
+.ok-msg{color:#15803d}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;margin:6px 0;font-size:14px;background:#f3f4f6}
+.a-warn{background:#fef3c7;color:#78350f}
+.a-neg{background:#fee2e2;color:#7f1d1d}
+.a-info{background:#e0f2fe;color:#0c4a6e}
+.legend{display:flex;gap:16px;font-size:13px;color:#374151;margin:8px 0}
+.legend i,.ctip i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.chart{width:100%;height:auto;display:block}
+.chart .ax{font-size:11px;fill:#6b7280}
+.chart path,.chart text,.chart line{pointer-events:none}
+.hit{cursor:pointer}
+.hit.on{fill:rgba(15,76,58,.07)}
+.ctip{position:fixed;z-index:25;background:#111827;color:#fff;font-size:13px;padding:8px 10px;border-radius:8px;pointer-events:none;line-height:1.6;width:190px}
+.tw{overflow-x:auto}
+table.rt{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06);margin:8px 0}
+.rt th{text-align:left;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.3px;padding:10px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+.rt td{padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.rt .n{text-align:right;white-space:nowrap}
+.rt td.act{white-space:nowrap;text-align:right}
+.rt td.act button,.rt td.act .btn{margin-left:4px}
+.rt tr.tot td{font-weight:700;background:#f9fafb}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.sheet{background:#fff;width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:30;max-width:90vw;text-align:center}
+.quit{border:1px dashed #9ca3af;border-radius:10px;padding:14px;background:#fafafa;font-size:14px}
+.quit h4{margin:0 0 8px;letter-spacing:.5px}
+.lock{position:fixed;inset:0;background:linear-gradient(135deg,#0f4c3a,#14795c);display:flex;align-items:center;justify-content:center;z-index:40}
+.lockbox{background:#fff;border-radius:16px;padding:24px;width:min(320px,90vw);text-align:center}
+.lockbox input{text-align:center;font-size:22px;letter-spacing:6px}
+.hidden-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+@media(max-width:959px){
+  .rt thead{display:none}
+  .rt,.rt tbody,.rt tr,.rt td{display:block;width:100%}
+  table.rt{background:none;box-shadow:none}
+  .rt tr{background:#fff;border-radius:12px;margin:10px 0;padding:8px 12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .rt td,.rt td.act{border:0;padding:5px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:right;white-space:normal}
+  .rt td::before{content:attr(data-l);color:#6b7280;font-size:13px;text-align:left}
+  .rt td.act::before{content:''}
+  .rt td.act{justify-content:flex-end;flex-wrap:wrap}
+}
+@media(min-width:700px){.modal{align-items:center}.sheet{border-radius:16px}}
+@media(min-width:960px){
+  nav{position:fixed;top:52px;left:0;bottom:0;width:220px;flex-direction:column;overflow-y:auto;border-right:1px solid #e5e7eb;border-bottom:0;padding:12px 0}
+  nav button{text-align:left;border-bottom:0;border-left:3px solid transparent;padding:12px 20px;font-size:15px}
+  nav button.on{border-left-color:#0f4c3a;background:#ecfdf5}
+  main{margin-left:220px;max-width:1280px;padding:22px 32px}
+  .grid{grid-template-columns:repeat(3,1fr)}
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+  .top{padding:0 24px}
+}
+@media(min-width:1300px){.kpis6{grid-template-columns:repeat(6,1fr)}}
+</style>
+</head>
+<body>
+<script type="application/json" id="data">{}</script>
+<script>
+/* ===== GestImmo v2 — gestion locative ===== */
+const SCRIPT=document.currentScript.textContent;
+const STYLE=document.querySelector('style').textContent;
+const NAV=[['dash','🏠','Accueil'],['immeubles','🏢','Immeubles'],['locataires','👥','Locataires'],['loyers','💰','Loyers'],['depenses','🧾','Dépenses'],['incidents','🛠️','Incidents'],['rapports','📊','Rapports'],['parametres','⚙️','Paramètres']];
+document.body.insertAdjacentHTML('afterbegin',`<header class="top"><b class="brand">🏢 GestImmo</b><div class="topr"><select id="immSel" aria-label="Immeuble"></select><button class="ghost sm hidden" id="lockBtn" data-a="lock" title="Verrouiller">🔒</button></div></header>
+<nav>${NAV.map(n=>`<button data-a="goto" data-id="${n[0]}">${n[1]} ${n[2]}</button>`).join('')}</nav>
+<main id="app"></main>
+<div id="toast" class="toast hidden"></div>
+<div id="ctip" class="ctip hidden"></div>
+<div id="modal" class="modal hidden"><div class="sheet"><div class="sheet-head"><h3 id="mTitle" style="margin:0"></h3><button type="button" class="ghost sm" data-a="closeModal">✕</button></div><form id="mForm" autocomplete="off"></form></div></div>
+<div id="lock" class="lock hidden"><form id="lockForm" class="lockbox"><h2>🔒 GestImmo</h2><p class="muted">Entrez votre code PIN</p><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8"><button class="primary" style="width:100%;margin-top:12px">Déverrouiller</button></form></div>`);
+
+const KEY='gestimmo_v1';
+const CATS=['Électricité','Eau','Gardiennage','Entretien / réparations','Travaux','Taxes / impôts','Assurance','Frais de gestion','Autre'];
+const MODES=['Espèces','Orange Money','MTN MoMo','Wave','Moov Money','Virement bancaire','Chèque'];
+const TYPES=['Studio','F1','F2','F3','F4','F5','Villa','Local commercial','Bureau','Autre'];
+const PRIOS=['Basse','Normale','Urgente'];
+const STATS=['Ouvert','En cours','Résolu'];
+const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const MOIS_C=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+const LBL={paye:'Payé',partiel:'Partiel',retard:'En retard',attente:'À venir'};
+const BCLS={paye:'ok',partiel:'warn',retard:'neg',attente:''};
+const C_ATT='#2a78d6',C_ENC='#eb6834';
+
+/* ---------- Outils ---------- */
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fcfa=n=>Math.round(Number(n)||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' FCFA';
+const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+function today(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
+function curMois(){return today().slice(0,7);}
+function shift(ym,n){const [y,m]=ym.split('-').map(Number);const d=new Date(y,m-1+n,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+const fmtDate=iso=>{if(!iso)return '—';const [y,m,d]=iso.split('-');return `${d}/${m}/${y}`;};
+const moisLabel=ym=>{const [y,m]=ym.split('-');return MOIS[m-1]+' '+y;};
+const jours=iso=>Math.round((new Date(iso+'T00:00:00')-new Date(today()+'T00:00:00'))/86400000);
+function plusUnAn(iso){const d=new Date(iso+'T00:00:00');d.setFullYear(d.getFullYear()+1);d.setDate(d.getDate()-1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function fail(m){throw new Error(m);}
+function waLink(tel,msg){let n=String(tel||'').replace(/\D/g,'');if(n.length===10&&n.startsWith('0'))n='225'+n;return `https://wa.me/${n}?text=${encodeURIComponent(msg)}`;}
+function hashPin(p){let h=2166136261;for(const c of 'gestimmo:'+p){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return (h>>>0).toString(16);}
+function compact(v){if(v>=1e6)return (v/1e6).toFixed(v%1e6?1:0).replace('.',',')+' M';if(v>=1e3)return Math.round(v/1e3)+' k';return String(Math.round(v));}
+function niceMax(v){const p=10**Math.floor(Math.log10(v));const n=v/p;return (n<=1?1:n<=2?2:n<=4?4:n<=5?5:n<=8?8:10)*p;}
+
+/* ---------- Données & enregistrement ---------- */
+function emptyDb(){return {immeubles:[],logements:[],locataires:[],baux:[],paiements:[],depenses:[],incidents:[],settings:{pin:'',seq:0}};}
+function migrate(d){
+  if(d.immeuble&&!(d.immeubles&&d.immeubles.length)){
+    if(d.immeuble.nom||(d.logements||[]).length){
+      d.immeubles=[{id:'i1',nom:d.immeuble.nom||'Mon immeuble',adresse:d.immeuble.adresse||'',proprietaire:d.immeuble.proprietaire||'',contact:d.immeuble.contact||''}];
+      (d.logements||[]).forEach(l=>l.immeubleId=l.immeubleId||'i1');
+      (d.depenses||[]).forEach(x=>x.immeubleId=x.immeubleId||'i1');
+    }
+  }
+  delete d.immeuble;
+  const e=emptyDb();
+  return {...e,...d,settings:{...e.settings,...(d.settings||{})}};
+}
+function load(){
+  let emb=null,loc=null;
+  try{const t=document.getElementById('data').textContent.trim();if(t&&t!=='{}')emb=JSON.parse(t);}catch(e){}
+  try{loc=JSON.parse(localStorage.getItem(KEY));}catch(e){}
+  const best=[emb,loc].filter(Boolean).sort((a,b)=>(b._ts||0)-(a._ts||0))[0];
+  return best?migrate(best):emptyDb();
+}
+let ART=null,DL=null,pubTimer=null,readOnly=false,PIDX=null,CHART=[];
+(async()=>{try{if(window.claude&&window.claude.use){ART=await window.claude.use('artifact');DL=await window.claude.use('downloads');}}catch(e){}})();
+function saveUi(){try{sessionStorage.setItem(KEY+'_ui',JSON.stringify({page:state.page,mois:state.mois,id:state.id,imm:state.imm,annee:state.annee,incF:state.incF,unlocked:state.unlocked}));}catch(e){}}
+function save(){
+  PIDX=null;
+  db._ts=Date.now();
+  try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}
+  if(ART&&!readOnly){clearTimeout(pubTimer);pubTimer=setTimeout(publishNow,1200);}
+}
+async function publishNow(){
+  if(!document.getElementById('modal').classList.contains('hidden')){pubTimer=setTimeout(publishNow,1500);return;}
+  saveUi();
+  const json=JSON.stringify(db).replace(/</g,'\\u003c');
+  const html=`<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f4c3a">
+<title>GestImmo — Gestion locative</title>
+<style>${STYLE}</style>
+</head>
+<body>
+<script type="application/json" id="data">${json}<\/script>
+<script>${SCRIPT}<\/script>
+</body>
+</html>`;
+  try{await ART.publish(html);}
+  catch(e){
+    const c=String((e&&(e.code||e.message))||'');
+    if(/not_granted|not_writer/.test(c)){readOnly=true;toast('Lecture seule : vos modifications restent sur cet appareil.');}
+    else if(!/conflict/.test(c))toast('Synchronisation impossible : données gardées sur cet appareil.');
+  }
+}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.add('hidden'),3500);}
+function ask(msg){
+  return new Promise(res=>{
+    document.getElementById('mTitle').textContent='Confirmation';
+    const f=document.getElementById('mForm');
+    f.innerHTML=`<p>${esc(msg)}</p><div class="actions"><button type="button" class="ghost" id="askNo">Annuler</button><button type="button" class="danger" id="askYes">Confirmer</button></div>`;
+    f.onsubmit=e=>e.preventDefault();
+    document.getElementById('modal').classList.remove('hidden');
+    document.getElementById('askNo').onclick=()=>{closeModal();res(false);};
+    document.getElementById('askYes').onclick=()=>{closeModal();res(true);};
+  });
+}
+async function saveFile(name,data,type){
+  if(DL){try{await DL.save({filename:name,data});toast('Fichier enregistré ✅');}catch(e){toast('Téléchargement annulé');}return;}
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();}catch(e){toast('Téléchargement indisponible ici');}
+}
+
+let db=load();
+let state={page:'dash',mois:curMois(),search:'',id:null,imm:'all',annee:curMois().slice(0,4),incF:'ouverts',unlocked:false};
+try{const u=JSON.parse(sessionStorage.getItem(KEY+'_ui'));if(u)Object.assign(state,u);sessionStorage.removeItem(KEY+'_ui');}catch(e){}
+
+/* ---------- Requêtes métier ---------- */
+const imm=id=>db.immeubles.find(x=>x.id===id);
+const logement=id=>db.logements.find(x=>x.id===id);
+const locataire=id=>db.locataires.find(x=>x.id===id);
+const bailNom=b=>locataire(b?.locataireId)?.nom||'—';
+const logNom=id=>logement(id)?.nom||'—';
+const bailLogement=lid=>db.baux.find(b=>b.logementId===lid&&!b.fin);
+const bailActif=(b,ym)=>b.debut.slice(0,7)<=ym&&(!b.fin||b.fin.slice(0,7)>=ym);
+const inImm=lid=>state.imm==='all'||logement(lid)?.immeubleId===state.imm;
+const LOGS=()=>db.logements.filter(l=>state.imm==='all'||l.immeubleId===state.imm);
+const BAUX=()=>db.baux.filter(b=>inImm(b.logementId));
+const DEPS=()=>db.depenses.filter(d=>state.imm==='all'||d.immeubleId===state.imm);
+const INCS=()=>db.incidents.filter(i=>inImm(i.logementId));
+const PAYS=()=>{const ids=new Set(BAUX().map(b=>b.id));return db.paiements.filter(p=>ids.has(p.bailId));};
+function montantDu(b,ym){let l=b.loyer,c=b.charges||0;(b.revisions||[]).forEach(r=>{if(!ym||r.depuis<=ym){l=r.loyer;c=r.charges;}});return Number(l)+Number(c||0);}
+function idx(){if(PIDX)return PIDX;PIDX=new Map();for(const p of db.paiements){const k=p.bailId+'|'+p.mois;PIDX.set(k,(PIDX.get(k)||0)+p.montant);}return PIDX;}
+const payeBail=(id,ym)=>idx().get(id+'|'+ym)||0;
+const echu=(b,ym)=>{const cur=curMois();return ym<cur||(ym===cur&&new Date().getDate()>Number(b.jour||5));};
+function statutBail(b,ym){
+  const du=montantDu(b,ym),p=payeBail(b.id,ym),reste=Math.max(0,du-p);
+  const statut=reste===0?'paye':p>0?'partiel':echu(b,ym)?'retard':'attente';
+  return {du,p,reste,statut};
+}
+function moisImpayes(b){
+  const cur=curMois(),end=b.fin&&b.fin.slice(0,7)<cur?b.fin.slice(0,7):cur,out=[];
+  for(let m=b.debut.slice(0,7);m<=end;m=shift(m,1)){
+    if(echu(b,m)){const r=Math.max(0,montantDu(b,m)-payeBail(b.id,m));if(r>0)out.push({m,r});}
+  }
+  return out;
+}
+function arrieres(b){const l=moisImpayes(b);return {tot:sum(l,x=>x.r),n:l.length,list:l};}
+const attenduMois=ym=>sum(BAUX().filter(b=>bailActif(b,ym)),b=>montantDu(b,ym));
+const encaisseMois=ym=>sum(PAYS().filter(p=>p.mois===ym),p=>p.montant);
+const impayeMois=ym=>sum(BAUX().filter(b=>bailActif(b,ym)&&echu(b,ym)),b=>statutBail(b,ym).reste);
+const depMois=ym=>sum(DEPS().filter(d=>d.date.slice(0,7)===ym),d=>d.montant);
+function nextNum(){db.settings.seq=(db.settings.seq||0)+1;return `${today().slice(0,4)}-${String(db.settings.seq).padStart(4,'0')}`;}
+
+/* ---------- Composants ---------- */
+const badge=s=>`<span class="badge ${BCLS[s]}">${LBL[s]}</span>`;
+const kpi=(t,v,sub='',c='')=>`<div class="kpi"><div class="muted">${t}</div><div class="kv ${c}">${v}</div>${sub?`<div class="muted small">${sub}</div>`:''}</div>`;
+const monthNav=()=>`<div class="mnav"><button class="ghost" data-a="mois" data-id="-1">‹</button><input type="month" id="mois" value="${state.mois}"><button class="ghost" data-a="mois" data-id="1">›</button></div>`;
+function tbl(cols,rows,empty='Aucune donnée.',totRow=null){
+  if(!rows.length)return `<p class="muted">${empty}</p>`;
+  const tr=(r,cls='')=>`<tr class="${cls}">${r.map((v,i)=>`<td class="${cols[i][1]||''}" data-l="${cols[i][0]}">${v}</td>`).join('')}</tr>`;
+  return `<div class="tw"><table class="rt"><thead><tr>${cols.map(c=>`<th class="${c[1]==='act'?'n':c[1]||''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>tr(r)).join('')}${totRow?tr(totRow,'tot'):''}</tbody></table></div>`;
+}
+const fld=(label,name,val='',type='text',req=true,extra='')=>`<label>${label}<input name="${name}" type="${type}" value="${esc(val)}" ${req?'required':''} ${extra}></label>`;
+const num=(label,name,val='',req=true)=>fld(label,name,val,'number',req,'min="0" step="1" inputmode="numeric"');
+const sel=(label,name,opts,val='')=>`<label>${label}<select name="${name}">${opts.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}" ${String(v)===String(val)?'selected':''}>${esc(t)}</option>`;}).join('')}</select></label>`;
+const immOpts=()=>db.immeubles.map(i=>[i.id,i.nom]);
+const defImm=()=>state.imm!=='all'?state.imm:db.immeubles[0]?.id;
+
+function chart12(ymEnd){
+  const ms=[...Array(12)].map((_,i)=>shift(ymEnd,i-11));
+  const d=ms.map(m=>({m,a:attenduMois(m),e:encaisseMois(m)}));
+  CHART=d;
+  const max=niceMax(Math.max(1,...d.map(x=>Math.max(x.a,x.e))));
+  const W=720,H=230,pl=50,pr=6,pt=10,pb=24,ih=H-pt-pb,cw=(W-pl-pr)/12,bw=Math.max(4,Math.min(16,(cw-12)/2));
+  const Y=v=>pt+ih*(1-v/max);
+  const bar=(x,v,c)=>{const h=ih*v/max;if(h<0.5)return '';const r=Math.min(4,h,bw/2),yt=pt+ih-h,yb=pt+ih;return `<path d="M${x},${yb}V${yt+r}Q${x},${yt} ${x+r},${yt}H${x+bw-r}Q${x+bw},${yt} ${x+bw},${yt+r}V${yb}Z" fill="${c}"/>`;};
+  let g='';
+  for(let k=0;k<=4;k++){const v=max*k/4,y=Y(v);g+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="${k?'#eef0f2':'#d1d5db'}"/><text x="${pl-6}" y="${y+4}" text-anchor="end" class="ax">${compact(v)}</text>`;}
+  d.forEach((x,i)=>{
+    const cx=pl+i*cw,x0=cx+(cw-(2*bw+2))/2;
+    g+=`<rect class="hit" data-i="${i}" x="${cx}" y="${pt}" width="${cw}" height="${ih}" fill="transparent"/>`;
+    g+=bar(x0,x.a,C_ATT)+bar(x0+bw+2,x.e,C_ENC);
+    g+=`<text x="${cx+cw/2}" y="${H-6}" text-anchor="middle" class="ax">${MOIS_C[+x.m.slice(5)-1]}</text>`;
+  });
+  return `<div class="legend"><span><i style="background:${C_ATT}"></i>Attendu</span><span><i style="background:${C_ENC}"></i>Encaissé</span></div>
+  <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Loyers attendus et encaissés sur 12 mois">${g}</svg>
+  <p class="muted small">Touchez ou survolez un mois pour le détail. Tableau complet dans Rapports.</p>`;
+}
+let tipOn=null;
+function chartTip(e){
+  const h=e.target.closest&&e.target.closest('.hit'),tip=document.getElementById('ctip');
+  if(tipOn&&tipOn!==h){tipOn.classList.remove('on');tipOn=null;}
+  if(!h){tip.classList.add('hidden');return;}
+  const x=CHART[+h.dataset.i];if(!x)return;
+  h.classList.add('on');tipOn=h;
+  tip.innerHTML=`<b>${moisLabel(x.m)}</b><br><i style="background:${C_ATT}"></i>Attendu : ${fcfa(x.a)}<br><i style="background:${C_ENC}"></i>Encaissé : ${fcfa(x.e)}<br>Taux : ${x.a?Math.round(Math.min(x.e,x.a)/x.a*100):0} %`;
+  tip.classList.remove('hidden');
+  const r=h.getBoundingClientRect();
+  tip.style.left=Math.min(window.innerWidth-200,Math.max(8,r.left+r.width/2-95))+'px';
+  tip.style.top=Math.max(60,r.top-tip.offsetHeight-6)+'px';
+}
+
+/* ---------- Modale ---------- */
+function modal(title,body,onOk,okLabel='Enregistrer'){
+  document.getElementById('mTitle').textContent=title;
+  const f=document.getElementById('mForm');
+  f.innerHTML=body+(onOk?`<div class="actions"><button type="button" class="ghost" data-a="closeModal">Annuler</button><button class="primary">${okLabel}</button></div>`:'');
+  f.onsubmit=e=>{
+    e.preventDefault();
+    if(!onOk)return;
+    try{const r=onOk(Object.fromEntries(new FormData(f)));if(r!==false){closeModal();save();render();}}
+    catch(err){toast(err.message);}
+  };
+  document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal(){document.getElementById('modal').classList.add('hidden');}
+
+/* ---------- Formulaires ---------- */
+const fImm=(i={})=>fld('Nom de l’immeuble','nom',i.nom||'')+fld('Adresse / quartier','adresse',i.adresse||'','text',false)+fld('Propriétaire / bailleur','proprietaire',i.proprietaire||'','text',false)+fld('Contact (téléphone)','contact',i.contact||'','tel',false);
+const fLog=(l={})=>sel('Immeuble','immeubleId',immOpts(),l.immeubleId||defImm())+fld('Nom / n° (ex : A1, Apt 3)','nom',l.nom||'')+sel('Type','type',TYPES,l.type||'F2')+fld('Étage','etage',l.etage??'RDC','text',false)+num('Loyer mensuel (FCFA)','loyer',l.loyer??'')+num('Charges mensuelles (FCFA)','charges',l.charges??0,false);
+const fLoc=(t={})=>fld('Nom complet','nom',t.nom||'')+fld('Téléphone (WhatsApp)','tel',t.tel||'','tel',false)+fld('Email','email',t.email||'','email',false)+fld('Profession / employeur','profession',t.profession||'','text',false)+fld('Pièce d’identité (type et n°)','piece',t.piece||'','text',false)+fld('Personne à contacter en cas d’urgence','urgence',t.urgence||'','text',false)+`<label>Notes<textarea name="notes" rows="3">${esc(t.notes||'')}</textarea></label>`;
+const fDep=(d={})=>sel('Immeuble','immeubleId',immOpts(),d.immeubleId||defImm())+fld('Date','date',d.date||today(),'date')+sel('Catégorie','cat',CATS,d.cat||CATS[0])+fld('Libellé','libelle',d.libelle||'')+num('Montant (FCFA)','montant',d.montant??'');
+const fInc=(i={})=>sel('Logement','logementId',LOGS().map(l=>[l.id,(db.immeubles.length>1?imm(l.immeubleId)?.nom+' — ':'')+l.nom]),i.logementId||'')+fld('Problème signalé','titre',i.titre||'')+`<label>Description<textarea name="description" rows="3">${esc(i.description||'')}</textarea></label>`+fld('Date du signalement','date',i.date||today(),'date')+sel('Priorité','priorite',PRIOS,i.priorite||'Normale')+sel('Statut','statut',STATS,i.statut||'Ouvert')+num('Coût de la réparation (FCFA)','cout',i.cout||0,false)+(i.depenseId?'<p class="muted">✔ Coût déjà ajouté aux dépenses.</p>':`<label class="chk"><input type="checkbox" name="toDep"> Ajouter le coût aux dépenses une fois résolu</label>`);
+
+/* ---------- Pages ---------- */
+function pageDash(){
+  if(!db.logements.length)return `<div class="card hero"><h2>Bienvenue sur GestImmo 👋</h2><p>Ajoutez votre immeuble et ses logements, puis enregistrez locataires, entrées, loyers, dépenses et incidents. Tout se calcule automatiquement.</p><div class="btns"><button data-a="addImmeuble">Ajouter un immeuble</button><button class="ghost" data-a="demo">Voir une démo</button></div></div>`;
+  const ym=state.mois,L=LOGS(),B=BAUX();
+  const actifs=B.filter(b=>bailActif(b,ym)).map(b=>({b,s:statutBail(b,ym)}));
+  const att=sum(actifs,x=>x.s.du),enc=encaisseMois(ym),dep=depMois(ym),solde=enc-dep;
+  const rel=actifs.filter(x=>x.s.statut==='retard'||x.s.statut==='partiel');
+  const imp=sum(rel,x=>x.s.reste);
+  const occ=L.filter(l=>bailLogement(l.id)).length,n=L.length,taux=n?Math.round(occ/n*100):0;
+  const rec=att?Math.round(Math.min(enc,att)/att*100):0;
+  const arr=B.map(b=>({b,a:arrieres(b)})).filter(x=>x.a.tot>0).sort((a,b)=>b.a.tot-a.a.tot);
+  const arrTot=sum(arr,x=>x.a.tot);
+  const al=[];
+  if(arrTot>0)al.push(['neg','⚠️',`${fcfa(arrTot)} d’arriérés cumulés chez ${arr.length} locataire(s)`]);
+  B.filter(b=>!b.fin&&b.finPrevue).map(b=>({b,j:jours(b.finPrevue)})).filter(x=>x.j<=60).sort((a,b)=>a.j-b.j)
+    .forEach(({b,j})=>al.push(['warn','⏳',`Bail de ${bailNom(b)} (${logNom(b.logementId)}) : ${j<0?'échu depuis '+(-j)+' jour(s)':'se termine dans '+j+' jour(s)'} — ${fmtDate(b.finPrevue)}`]));
+  const inc=INCS().filter(i=>i.statut!=='Résolu'),urg=inc.filter(i=>i.priorite==='Urgente').length;
+  if(inc.length)al.push([urg?'neg':'warn','🛠️',`${inc.length} incident(s) en cours${urg?` dont ${urg} urgent(s)`:''}`]);
+  const vac=L.filter(l=>!bailLogement(l.id));
+  if(vac.length)al.push(['info','🚪',`${vac.length} logement(s) libre(s) : ${vac.map(l=>l.nom).join(', ')}`]);
+  const mv=B.filter(b=>b.debut.slice(0,7)===ym||(b.fin&&b.fin.slice(0,7)===ym));
+  return `${monthNav()}
+  <div class="grid kpis6">
+    ${kpi('Occupation',`${occ}/${n}`,`${taux} % occupé`)}
+    ${kpi('Loyers attendus',fcfa(att),moisLabel(ym))}
+    ${kpi('Encaissé',fcfa(enc),`Recouvrement ${rec} %`,'ok')}
+    ${kpi('Impayés du mois',fcfa(imp),`${rel.length} locataire(s)`,imp>0?'neg':'ok')}
+    ${kpi('Dépenses',fcfa(dep))}
+    ${kpi('Solde net',fcfa(solde),'Encaissé − dépenses',solde>=0?'ok':'neg')}
+  </div>
+  <div class="cols2">
+    <div class="card"><h3 style="margin:0">Loyers sur 12 mois</h3>${chart12(ym)}</div>
+    <div class="card"><h3 style="margin-top:0">Alertes</h3>${al.length?al.map(a=>`<div class="alert a-${a[0]}"><span>${a[1]}</span><span>${esc(a[2])}</span></div>`).join(''):'<p class="ok-msg">✅ Tout est en ordre.</p>'}</div>
+  </div>
+  <div class="cols2">
+    <div><h3>À relancer — ${moisLabel(ym)}</h3>
+    ${tbl([['Locataire'],['Logement'],['Reste','n'],['','act']],rel.map(({b,s})=>{
+      const t=locataire(b.locataireId);
+      const msg=`Bonjour ${t?.nom||''}, rappel : le loyer de ${moisLabel(ym)} pour ${logNom(b.logementId)} présente un reste à payer de ${fcfa(s.reste)}. Merci de régulariser. Bonne journée.`;
+      return [`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(t?.nom)}</button>`,esc(logNom(b.logementId)),`<span class="neg">${fcfa(s.reste)}</span>`,
+        `${t?.tel?`<a class="btn wa sm" href="${esc(waLink(t.tel,msg))}" target="_blank" rel="noopener">WhatsApp</a>`:''}<button class="sm primary" data-a="encaisser" data-id="${b.id}">Encaisser</button>`];
+    }),'✅ Aucun impayé pour ce mois.')}</div>
+    <div><h3>Plus gros arriérés (tous mois)</h3>
+    ${tbl([['Locataire'],['Mois impayés','n'],['Montant','n'],['','act']],arr.slice(0,6).map(({b,a})=>[
+      `<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(bailNom(b))}</button>${b.fin?' <span class="badge">Parti</span>':''}`,String(a.n),`<span class="neg">${fcfa(a.tot)}</span>`,
+      `<button class="sm" data-a="regler" data-id="${b.id}">Régler</button>`]),'✅ Aucun arriéré.')}</div>
+  </div>
+  <h3>Entrées & sorties — ${moisLabel(ym)}</h3>
+  ${tbl([['Locataire'],['Logement'],['Mouvement']],mv.map(b=>{
+    const parts=[];
+    if(b.debut.slice(0,7)===ym)parts.push(`<span class="badge ok">Entrée</span> ${fmtDate(b.debut)}`);
+    if(b.fin&&b.fin.slice(0,7)===ym)parts.push(`<span class="badge neg">Sortie</span> ${fmtDate(b.fin)}`);
+    return [`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(bailNom(b))}</button>`,esc(logNom(b.logementId)),parts.join(' ')];
+  }),'Aucune entrée ni sortie ce mois.')}`;
+}
+
+function pageImmeubles(){
+  const list=state.imm==='all'?db.immeubles:db.immeubles.filter(i=>i.id===state.imm);
+  const head=`<div class="row"><h2>Immeubles (${db.immeubles.length})</h2><div class="btns" style="margin:0"><button class="primary sm" data-a="addImmeuble">+ Immeuble</button><button class="sm" data-a="addLogement">+ Logement</button></div></div>`;
+  if(!list.length)return head+`<div class="card"><p>Aucun immeuble pour l’instant.</p><button class="primary" data-a="addImmeuble">Ajouter mon premier immeuble</button></div>`;
+  return head+list.map(im=>{
+    const L=db.logements.filter(l=>l.immeubleId===im.id);
+    const occ=L.filter(l=>bailLogement(l.id));
+    const pot=sum(L,l=>{const b=bailLogement(l.id);return b?montantDu(b,curMois()):Number(l.loyer)+Number(l.charges||0);});
+    const reel=sum(occ,l=>montantDu(bailLogement(l.id),curMois()));
+    return `<div class="card">
+      <div class="row"><div><h2 style="margin:0">${esc(im.nom)}</h2><p class="muted">${esc(im.adresse||'Adresse non renseignée')}${im.proprietaire?' · '+esc(im.proprietaire):''}${im.contact?' · '+esc(im.contact):''}</p></div>
+      <div class="btns" style="margin:0"><button class="sm ghost" data-a="editImmeuble" data-id="${im.id}">Modifier</button><button class="sm danger" data-a="delImmeuble" data-id="${im.id}">Supprimer</button></div></div>
+      <div class="grid">${kpi('Logements',`${occ.length}/${L.length} occupés`)}${kpi('Revenu mensuel actuel',fcfa(reel),'','ok')}${kpi('Revenu potentiel (100 %)',fcfa(pot))}</div>
+      ${tbl([['Logement'],['Type'],['Étage'],['Loyer + charges','n'],['Occupation'],['','act']],L.map(l=>{
+        const b=bailLogement(l.id);
+        return [`<b>${esc(l.nom)}</b>`,esc(l.type),esc(l.etage),fcfa(b?montantDu(b,curMois()):Number(l.loyer)+Number(l.charges||0)),
+          b?`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(bailNom(b))}</button> <span class="muted small">depuis ${fmtDate(b.debut)}</span>`:'<span class="badge">Libre</span>',
+          `${b?`<button class="sm" data-a="sortie" data-id="${b.id}">Sortie</button>`:`<button class="sm primary" data-a="louer" data-id="${l.id}">Louer</button>`}<button class="sm ghost" data-a="editLogement" data-id="${l.id}">Modifier</button><button class="sm danger" data-a="delLogement" data-id="${l.id}">✕</button>`];
+      }),'Aucun logement dans cet immeuble.')}
+    </div>`;
+  }).join('');
+}
+
+function locVisibles(){
+  if(state.imm==='all')return db.locataires;
+  const ids=new Set(BAUX().map(b=>b.locataireId));
+  return db.locataires.filter(t=>ids.has(t.id)||!db.baux.some(b=>b.locataireId===t.id));
+}
+function listeLocataires(){
+  const q=state.search.toLowerCase();
+  const list=locVisibles().filter(t=>!q||(t.nom+' '+(t.tel||'')).toLowerCase().includes(q)).sort((a,b)=>a.nom.localeCompare(b.nom));
+  return tbl([['Nom'],['Logement'],['Téléphone'],['Arriérés','n'],['Statut']],list.map(t=>{
+    const baux=db.baux.filter(x=>x.locataireId===t.id),b=baux.find(x=>!x.fin);
+    const arr=sum(baux,x=>arrieres(x).tot);
+    return [`<button class="linkbtn" data-a="fiche" data-id="${t.id}">${esc(t.nom)}</button>`,esc(b?logNom(b.logementId):'—'),esc(t.tel||'—'),
+      arr?`<span class="neg">${fcfa(arr)}</span>`:'<span class="ok">0 FCFA</span>',b?'<span class="badge ok">Actif</span>':baux.length?'<span class="badge">Ancien</span>':'<span class="badge warn">Sans bail</span>'];
+  }),'Aucun locataire trouvé.');
+}
+function pageLocataires(){
+  return `<div class="row"><h2>Locataires (${locVisibles().length})</h2><button class="primary sm" data-a="addLocataire">+ Locataire</button></div>
+  <input id="search" class="search" placeholder="Rechercher un nom ou un numéro…" value="${esc(state.search)}">
+  <div id="liste">${listeLocataires()}</div>`;
+}
+
+function pageFiche(){
+  const t=locataire(state.id);
+  if(!t){state.page='locataires';return pageLocataires();}
+  const baux=db.baux.filter(b=>b.locataireId===t.id).sort((a,b)=>b.debut.localeCompare(a.debut));
+  const ids=baux.map(b=>b.id);
+  const pays=db.paiements.filter(p=>ids.includes(p.bailId)).sort((a,b)=>b.mois.localeCompare(a.mois)||b.date.localeCompare(a.date));
+  const actif=baux.find(b=>!b.fin);
+  const arr=sum(baux,b=>arrieres(b).tot),arrB=baux.find(b=>arrieres(b).tot>0);
+  return `<button class="ghost sm" data-a="goto" data-id="locataires">← Locataires</button>
+  <div class="card">
+    <div class="row"><h2 style="margin:0">${esc(t.nom)}</h2>${actif?'<span class="badge ok">Locataire actif</span>':'<span class="badge">Ancien locataire</span>'}</div>
+    <p>${t.tel?`📞 ${esc(t.tel)}`:''}${t.email?` · ✉️ ${esc(t.email)}`:''}</p>
+    <p class="muted">${t.profession?'Profession : '+esc(t.profession)+' · ':''}Pièce d’identité : ${esc(t.piece||'—')}${t.urgence?' · Urgence : '+esc(t.urgence):''}</p>
+    ${t.notes?`<p>${esc(t.notes)}</p>`:''}
+    <div class="btns">
+      ${actif?`<button class="sm primary" data-a="encaisser" data-id="${actif.id}">Encaisser</button>`:''}
+      ${arrB?`<button class="sm" data-a="regler" data-id="${arrB.id}">Régler les arriérés</button>`:''}
+      ${t.tel?`<a class="btn wa sm" href="${esc(waLink(t.tel,'Bonjour '+t.nom+','))}" target="_blank" rel="noopener">WhatsApp</a>`:''}
+      <button class="sm ghost" data-a="editLocataire" data-id="${t.id}">Modifier</button>
+      ${actif?`<button class="sm ghost" data-a="editBail" data-id="${actif.id}">Modifier le bail</button><button class="sm" data-a="sortie" data-id="${actif.id}">Enregistrer la sortie</button>`:''}
+      <button class="sm danger" data-a="delLocataire" data-id="${t.id}">Supprimer</button>
+    </div>
+  </div>
+  <div class="grid">
+    ${kpi('Arriérés',fcfa(arr),'',arr?'neg':'ok')}
+    ${kpi('Total payé',fcfa(sum(pays,p=>p.montant)),`${pays.length} paiement(s)`)}
+    ${kpi('Loyer actuel',actif?fcfa(montantDu(actif,curMois())):'—',actif?`Échéance le ${actif.jour} du mois`:'')}
+  </div>
+  <h3>Baux (entrées / sorties)</h3>
+  ${baux.map(b=>{
+    const a=arrieres(b);
+    return `<div class="card"><div class="row"><b>${esc(logNom(b.logementId))}</b>${b.fin?'<span class="badge">Terminé</span>':'<span class="badge ok">En cours</span>'}</div>
+    <p class="muted">Entrée le ${fmtDate(b.debut)} · ${b.fin?'Sortie le '+fmtDate(b.fin):'En cours'}${b.finPrevue&&!b.fin?' · Fin prévue le '+fmtDate(b.finPrevue):''}</p>
+    <p class="muted">Loyer ${fcfa(montantDu(b))} · Caution ${fcfa(b.caution)}${b.fin?` · restituée ${fcfa(b.cautionRestituee||0)}${b.cautionRetenue?` · retenue ${fcfa(b.cautionRetenue)}${b.motifRetenue?' ('+esc(b.motifRetenue)+')':''}`:''}`:''}</p>
+    ${(b.revisions||[]).length?`<p class="muted">Révisions : ${b.revisions.map(r=>`${moisLabel(r.depuis)} → ${fcfa(Number(r.loyer)+Number(r.charges||0))}`).join(' · ')}</p>`:''}
+    ${a.n?`<p class="neg small">Mois impayés : ${a.list.map(x=>`${moisLabel(x.m)} (${fcfa(x.r)})`).join(', ')}</p>`:''}</div>`;
+  }).join('')||'<p class="muted">Aucun bail.</p>'}
+  <h3>Historique des paiements</h3>
+  ${tbl([['N°'],['Mois'],['Montant','n'],['Reçu le'],['Mode'],['','act']],pays.map(p=>[esc(p.num||'—'),moisLabel(p.mois),`<span class="ok">${fcfa(p.montant)}</span>`,fmtDate(p.date),esc(p.mode)+(p.ref?' · '+esc(p.ref):''),
+    `<button class="sm" data-a="quittance" data-id="${p.id}">🧾 Quittance</button><button class="sm danger" data-a="delPaiement" data-id="${p.id}">✕</button>`]),'Aucun paiement enregistré.')}`;
+}
+
+function pageLoyers(){
+  const ym=state.mois;
+  const actifs=BAUX().filter(b=>bailActif(b,ym)).map(b=>({b,s:statutBail(b,ym)})).sort((a,b)=>logNom(a.b.logementId).localeCompare(logNom(b.b.logementId)));
+  const att=sum(actifs,x=>x.s.du);
+  const pays=PAYS().filter(p=>p.mois===ym).sort((a,b)=>b.date.localeCompare(a.date));
+  const enc=sum(pays,p=>p.montant),reste=sum(actifs,x=>x.s.reste);
+  return `${monthNav()}
+  <div class="grid">${kpi('Attendu',fcfa(att))}${kpi('Encaissé',fcfa(enc),'','ok')}${kpi('Reste à percevoir',fcfa(reste),`Recouvrement ${att?Math.round(Math.min(enc,att)/att*100):0} %`,reste?'neg':'ok')}</div>
+  <div class="row"><h3>Loyers de ${moisLabel(ym)}</h3><button class="sm ghost" data-a="csv">⬇ Export Excel</button></div>
+  ${tbl([['Logement'],['Locataire'],['Dû','n'],['Payé','n'],['Reste','n'],['Statut'],['','act']],actifs.map(({b,s})=>{
+    const t=locataire(b.locataireId);
+    const msg=`Bonjour ${t?.nom||''}, rappel : le loyer de ${moisLabel(ym)} pour ${logNom(b.logementId)} présente un reste à payer de ${fcfa(s.reste)}. Merci de régulariser. Bonne journée.`;
+    return [esc(logNom(b.logementId)),`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(t?.nom)}</button>`,fcfa(s.du),fcfa(s.p),`<span class="${s.reste?'neg':'ok'}">${fcfa(s.reste)}</span>`,badge(s.statut),
+      `${s.reste&&t?.tel&&s.statut!=='attente'?`<a class="btn wa sm" href="${esc(waLink(t.tel,msg))}" target="_blank" rel="noopener">Relancer</a>`:''}${s.reste?`<button class="sm primary" data-a="encaisser" data-id="${b.id}">Encaisser</button>`:''}`];
+  }),'Aucun bail actif ce mois-ci.')}
+  <h3>Paiements reçus — ${moisLabel(ym)}</h3>
+  ${tbl([['N°'],['Date'],['Locataire'],['Montant','n'],['Mode'],['','act']],pays.map(p=>{const bp=db.baux.find(x=>x.id===p.bailId);return [esc(p.num||'—'),fmtDate(p.date),esc(bailNom(bp)),`<span class="ok">${fcfa(p.montant)}</span>`,esc(p.mode)+(p.ref?' · '+esc(p.ref):''),
+    `<button class="sm" data-a="quittance" data-id="${p.id}">🧾 Quittance</button><button class="sm danger" data-a="delPaiement" data-id="${p.id}">✕</button>`];}),'Aucun paiement enregistré ce mois.')}`;
+}
+
+function pageDepenses(){
+  const ym=state.mois;
+  const list=DEPS().filter(d=>d.date.slice(0,7)===ym).sort((a,b)=>b.date.localeCompare(a.date));
+  const tot=sum(list,d=>d.montant);
+  const parCat=CATS.map(c=>[c,sum(list.filter(d=>d.cat===c),d=>d.montant)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  const multi=db.immeubles.length>1&&state.imm==='all';
+  const cols=[['Date'],...(multi?[['Immeuble']]:[]),['Catégorie'],['Libellé'],['Montant','n'],['','act']];
+  return `${monthNav()}
+  <div class="row"><h2>Dépenses</h2><button class="primary sm" data-a="addDepense">+ Dépense</button></div>
+  <div class="cols2">
+    <div class="card"><p class="muted">Total ${moisLabel(ym)}</p><p class="big">${fcfa(tot)}</p><p class="muted">Encaissé ce mois : ${fcfa(encaisseMois(ym))} · Solde : ${fcfa(encaisseMois(ym)-tot)}</p></div>
+    <div class="card"><p class="muted">Par catégorie</p>${parCat.map(([c,v])=>`<div class="row"><span>${esc(c)}</span><b>${fcfa(v)}</b></div>`).join('')||'<p class="muted">—</p>'}</div>
+  </div>
+  ${tbl(cols,list.map(d=>[fmtDate(d.date),...(multi?[esc(imm(d.immeubleId)?.nom||'—')]:[]),esc(d.cat),esc(d.libelle),fcfa(d.montant),
+    `<button class="sm ghost" data-a="editDepense" data-id="${d.id}">Modifier</button><button class="sm danger" data-a="delDepense" data-id="${d.id}">✕</button>`]),'Aucune dépense ce mois-ci.')}`;
+}
+
+function pageIncidents(){
+  const all=INCS().sort((a,b)=>b.date.localeCompare(a.date));
+  const list=state.incF==='ouverts'?all.filter(i=>i.statut!=='Résolu'):all;
+  const pc={Basse:'',Normale:'warn',Urgente:'neg'},sc={Ouvert:'neg','En cours':'warn','Résolu':'ok'};
+  return `<div class="row"><h2>Incidents & maintenance</h2><button class="primary sm" data-a="addIncident">+ Signaler</button></div>
+  <div class="seg"><button class="${state.incF==='ouverts'?'on':''}" data-a="incF" data-id="ouverts">En cours (${all.filter(i=>i.statut!=='Résolu').length})</button><button class="${state.incF==='tous'?'on':''}" data-a="incF" data-id="tous">Tous (${all.length})</button></div>
+  ${tbl([['Date'],['Logement'],['Problème'],['Priorité'],['Statut'],['Coût','n'],['','act']],list.map(i=>[fmtDate(i.date),esc(logNom(i.logementId)),
+    `<b>${esc(i.titre)}</b>${i.description?`<div class="muted small">${esc(i.description)}</div>`:''}`,
+    `<span class="badge ${pc[i.priorite]}">${i.priorite==='Urgente'?'🔴 ':''}${esc(i.priorite)}</span>`,`<span class="badge ${sc[i.statut]}">${esc(i.statut)}</span>`,i.cout?fcfa(i.cout):'—',
+    `<button class="sm ghost" data-a="editIncident" data-id="${i.id}">Modifier</button><button class="sm danger" data-a="delIncident" data-id="${i.id}">✕</button>`]),state.incF==='ouverts'?'✅ Aucun incident en cours.':'Aucun incident enregistré.')}`;
+}
+
+function bilan(y){
+  return [...Array(12)].map((_,i)=>{const m=`${y}-${String(i+1).padStart(2,'0')}`;const a=attenduMois(m),e=encaisseMois(m),im=impayeMois(m),dp=depMois(m);return {m,a,e,im,dp,net:e-dp};});
+}
+function situation(){
+  return BAUX().map(b=>({b,a:arrieres(b)})).filter(x=>!x.b.fin||x.a.tot>0).sort((a,b)=>b.a.tot-a.a.tot);
+}
+function pageRapports(){
+  const y=state.annee,rows=bilan(y),T=k=>sum(rows,r=>r[k]);
+  const rec=T('a')?Math.round(Math.min(T('e'),T('a'))/T('a')*100):0;
+  const sit=situation();
+  return `<div class="row"><h2>Rapports</h2><div class="mnav" style="margin:0"><button class="ghost" data-a="annee" data-id="-1">‹</button><b style="padding:0 10px">${y}</b><button class="ghost" data-a="annee" data-id="1">›</button></div></div>
+  <div class="grid kpis6">${kpi('Loyers attendus',fcfa(T('a')))}${kpi('Encaissé',fcfa(T('e')),'','ok')}${kpi('Taux de recouvrement',rec+' %')}${kpi('Impayés',fcfa(T('im')),'',T('im')?'neg':'ok')}${kpi('Dépenses',fcfa(T('dp')))}${kpi('Résultat net',fcfa(T('net')),'',T('net')>=0?'ok':'neg')}</div>
+  <div class="row"><h3>Bilan mensuel ${y}</h3><div class="btns" style="margin:0"><button class="sm ghost" data-a="csvBilan">⬇ Export Excel</button><button class="sm ghost" data-a="dlRapport">⬇ Rapport imprimable</button></div></div>
+  ${tbl([['Mois'],['Attendu','n'],['Encaissé','n'],['Impayés','n'],['Dépenses','n'],['Net','n']],rows.map(r=>[moisLabel(r.m),fcfa(r.a),fcfa(r.e),r.im?`<span class="neg">${fcfa(r.im)}</span>`:fcfa(0),fcfa(r.dp),`<span class="${r.net>=0?'ok':'neg'}">${fcfa(r.net)}</span>`]),'',
+    ['Total',fcfa(T('a')),fcfa(T('e')),fcfa(T('im')),fcfa(T('dp')),fcfa(T('net'))])}
+  <div class="row"><h3>Situation des locataires</h3><button class="sm ghost" data-a="csvSituation">⬇ Export Excel</button></div>
+  ${tbl([['Locataire'],['Logement'],['Loyer','n'],['Mois impayés','n'],['Arriérés','n'],['Caution','n']],sit.map(({b,a})=>[`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(bailNom(b))}</button>${b.fin?' <span class="badge">Parti</span>':''}`,esc(logNom(b.logementId)),fcfa(montantDu(b,curMois())),String(a.n),a.tot?`<span class="neg">${fcfa(a.tot)}</span>`:'<span class="ok">À jour</span>',fcfa(b.caution)]),'Aucun locataire.')}`;
+}
+
+function pageParametres(){
+  return `<h2>Paramètres</h2>
+  <div class="cols2">
+    <div class="card"><h3 style="margin-top:0">🔒 Sécurité</h3>
+      ${db.settings.pin?`<p>Code PIN <span class="badge ok">Activé</span></p><p class="muted">L’application demande le code à l’ouverture.</p><div class="btns"><button class="sm" data-a="setPin">Changer le code</button><button class="sm ghost" data-a="lock">Verrouiller maintenant</button><button class="sm danger" data-a="delPin">Désactiver</button></div>`
+      :`<p class="muted">Protégez l’accès à l’application avec un code PIN de 4 à 8 chiffres.</p><button class="primary sm" data-a="setPin">Activer un code PIN</button>`}
+    </div>
+    <div class="card"><h3 style="margin-top:0">💾 Sauvegarde & données</h3>
+      <p class="muted">Les données sont enregistrées automatiquement. Exportez de temps en temps une sauvegarde pour plus de sécurité.</p>
+      <div class="btns col">
+        <button type="button" class="primary" data-a="exportJson">📤 Exporter la sauvegarde (.json)</button>
+        <label class="btn ghost" style="position:relative;margin:0">📥 Importer une sauvegarde<input type="file" id="importFile" accept="application/json,.json" class="hidden-input"></label>
+        <button type="button" class="ghost" data-a="demo">Charger les données de démo</button>
+        <button type="button" class="danger" data-a="reset">Tout effacer</button>
+      </div>
+    </div>
+  </div>
+  <div class="card"><h3 style="margin-top:0">ℹ️ GestImmo v2</h3><p class="muted">${db.immeubles.length} immeuble(s) · ${db.logements.length} logement(s) · ${db.locataires.length} locataire(s) · ${db.paiements.length} paiement(s) · ${db.depenses.length} dépense(s) · ${db.incidents.length} incident(s)</p></div>`;
+}
+
+const PAGES={dash:pageDash,immeubles:pageImmeubles,locataires:pageLocataires,fiche:pageFiche,loyers:pageLoyers,depenses:pageDepenses,incidents:pageIncidents,rapports:pageRapports,parametres:pageParametres};
+function render(){
+  PIDX=null;
+  if(state.imm!=='all'&&!imm(state.imm))state.imm='all';
+  const s=document.getElementById('immSel');
+  s.innerHTML=`<option value="all">Tous les immeubles</option>`+db.immeubles.map(i=>`<option value="${i.id}" ${i.id===state.imm?'selected':''}>${esc(i.nom)}</option>`).join('');
+  s.classList.toggle('hidden',db.immeubles.length<2);
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.id===(state.page==='fiche'?'locataires':state.page)));
+  document.getElementById('ctip').classList.add('hidden');
+  document.getElementById('app').innerHTML=(PAGES[state.page]||pageDash)();
+  checkLock();
+}
+function checkLock(){
+  document.getElementById('lockBtn').classList.toggle('hidden',!db.settings.pin);
+  const L=document.getElementById('lock');
+  if(db.settings.pin&&!state.unlocked){L.classList.remove('hidden');setTimeout(()=>document.getElementById('pinIn').focus(),50);}
+  else L.classList.add('hidden');
+}
+
+/* ---------- Actions ---------- */
+const A={};
+A.goto=id=>{state.page=id;render();window.scrollTo(0,0);};
+A.fiche=id=>{state.page='fiche';state.id=id;render();window.scrollTo(0,0);};
+A.mois=n=>{state.mois=shift(state.mois,Number(n));render();};
+A.annee=n=>{state.annee=String(Number(state.annee)+Number(n));render();};
+A.incF=v=>{state.incF=v;render();};
+A.closeModal=closeModal;
+A.lock=()=>{state.unlocked=false;saveUi();checkLock();};
+
+const immData=d=>{if(!d.nom.trim())fail('Le nom de l’immeuble est requis');return {nom:d.nom.trim(),adresse:d.adresse.trim(),proprietaire:d.proprietaire.trim(),contact:d.contact.trim()};};
+A.addImmeuble=()=>modal('Nouvel immeuble',fImm(),d=>{const id=uid();db.immeubles.push({id,...immData(d)});if(db.immeubles.length>1)state.imm=id;state.page='immeubles';});
+A.editImmeuble=id=>{const i=imm(id);modal('Modifier l’immeuble',fImm(i),d=>{Object.assign(i,immData(d));});};
+A.delImmeuble=async id=>{
+  if(db.logements.some(l=>l.immeubleId===id))return toast('Supprimez d’abord les logements de cet immeuble.');
+  if(!await ask(`Supprimer l’immeuble ${imm(id).nom} ?`))return;
+  db.immeubles=db.immeubles.filter(x=>x.id!==id);save();render();
+};
+
+const logData=(d,id)=>{
+  if(!d.immeubleId)fail('Choisissez un immeuble');
+  if(!d.nom.trim())fail('Le nom du logement est requis');
+  if(!(Number(d.loyer)>0))fail('Le loyer doit être supérieur à 0');
+  return {id,immeubleId:d.immeubleId,nom:d.nom.trim(),type:d.type,etage:(d.etage||'').trim()||'RDC',loyer:Number(d.loyer),charges:Number(d.charges)||0};
+};
+A.addLogement=()=>{if(!db.immeubles.length){toast('Ajoutez d’abord un immeuble.');return A.addImmeuble();}modal('Nouveau logement',fLog(),d=>{db.logements.push(logData(d,uid()));});};
+A.editLogement=id=>{const l=logement(id);modal('Modifier le logement',fLog(l),d=>{Object.assign(l,logData(d,id));});};
+A.delLogement=async id=>{
+  const l=logement(id);
+  if(bailLogement(id))return toast('Ce logement est occupé : enregistrez d’abord la sortie.');
+  if(db.baux.some(b=>b.logementId===id))return toast('Ce logement a un historique de baux : il ne peut pas être supprimé.');
+  if(!await ask(`Supprimer le logement ${l.nom} ?`))return;
+  db.logements=db.logements.filter(x=>x.id!==id);save();render();
+};
+
+A.louer=lid=>{
+  const l=logement(lid);
+  if(bailLogement(lid))return toast('Ce logement est déjà occupé.');
+  const libres=db.locataires.filter(t=>!db.baux.some(b=>!b.fin&&b.locataireId===t.id));
+  modal(`Louer ${l.nom}`,
+    `<p class="muted">Loyer prévu : <b>${fcfa(l.loyer)}</b>${l.charges?` + ${fcfa(l.charges)} de charges`:''}</p>`+
+    sel('Locataire','locId',[['','— Nouveau locataire —'],...libres.map(t=>[t.id,t.nom])],'')+
+    fld('Nom du nouveau locataire','nomNew','','text',false)+
+    fld('Téléphone du nouveau locataire','telNew','','tel',false)+
+    fld('Date d’entrée','debut',today(),'date')+
+    fld('Fin prévue du bail (facultatif)','finPrevue',plusUnAn(today()),'date',false)+
+    num('Loyer mensuel (FCFA)','loyer',l.loyer)+
+    num('Charges (FCFA)','charges',l.charges||0,false)+
+    num('Caution / dépôt de garantie (FCFA)','caution',l.loyer*2,false)+
+    num('Avance versée à l’entrée (mois de loyer)','avance',0,false)+
+    num('Jour d’échéance du loyer (1 à 31)','jour',5),
+    d=>{
+      if(!d.debut)fail('La date d’entrée est requise');
+      if(!(Number(d.loyer)>0))fail('Loyer invalide');
+      const jour=Number(d.jour);
+      if(!(jour>=1&&jour<=31))fail('Le jour d’échéance doit être entre 1 et 31');
+      if(d.finPrevue&&d.finPrevue<=d.debut)fail('La fin prévue doit être après l’entrée');
+      const av=Math.min(24,Math.max(0,Math.floor(Number(d.avance)||0)));
+      let locId=d.locId;
+      if(!locId&&!d.nomNew.trim())fail('Indiquez le nom du locataire');
+      if(!locId){locId=uid();db.locataires.push({id:locId,nom:d.nomNew.trim(),tel:d.telNew.trim(),email:'',profession:'',piece:'',urgence:'',notes:''});}
+      const b={id:uid(),logementId:lid,locataireId:locId,debut:d.debut,fin:null,finPrevue:d.finPrevue||'',loyer:Number(d.loyer),charges:Number(d.charges)||0,caution:Number(d.caution)||0,jour,revisions:[],cautionRetenue:0,cautionRestituee:0,motifRetenue:''};
+      db.baux.push(b);
+      for(let i=0;i<av;i++){const m=shift(d.debut.slice(0,7),i);db.paiements.push({id:uid(),bailId:b.id,mois:m,montant:montantDu(b,m),date:d.debut,mode:'Espèces',ref:'Avance à l’entrée',num:nextNum()});}
+    },'Confirmer l’entrée');
+};
+
+A.editBail=bid=>{
+  const b=db.baux.find(x=>x.id===bid);
+  let cl=b.loyer,cc=b.charges||0;(b.revisions||[]).forEach(r=>{cl=r.loyer;cc=r.charges;});
+  modal('Modifier le bail',
+    `<p class="muted"><b>${esc(bailNom(b))}</b> · ${esc(logNom(b.logementId))}</p>`+
+    num('Loyer mensuel (FCFA)','loyer',cl)+num('Charges (FCFA)','charges',cc,false)+
+    fld('Nouveau montant applicable à partir de','depuis',curMois(),'month')+
+    `<p class="muted small">Les mois précédents gardent l’ancien montant (historique des révisions).</p>`+
+    num('Jour d’échéance (1 à 31)','jour',b.jour)+
+    fld('Fin prévue du bail','finPrevue',b.finPrevue||'','date',false)+
+    num('Caution (FCFA)','caution',b.caution,false),
+    d=>{
+      const jour=Number(d.jour);
+      if(!(jour>=1&&jour<=31))fail('Le jour d’échéance doit être entre 1 et 31');
+      const nl=Number(d.loyer),nc=Number(d.charges)||0;
+      if(!(nl>0))fail('Loyer invalide');
+      if(nl!==Number(cl)||nc!==Number(cc)){
+        if(!d.depuis)fail('Indiquez le mois d’application');
+        if(d.depuis<=b.debut.slice(0,7)){b.loyer=nl;b.charges=nc;b.revisions=(b.revisions||[]).filter(r=>r.depuis>d.depuis);}
+        else{b.revisions=(b.revisions||[]).filter(r=>r.depuis!==d.depuis);b.revisions.push({depuis:d.depuis,loyer:nl,charges:nc});b.revisions.sort((x,y)=>x.depuis.localeCompare(y.depuis));}
+      }
+      Object.assign(b,{jour,finPrevue:d.finPrevue||'',caution:Number(d.caution)||0});
+    });
+};
+
+A.sortie=bid=>{
+  const b=db.baux.find(x=>x.id===bid),a=arrieres(b);
+  modal('Enregistrer la sortie',
+    `<p class="muted"><b>${esc(bailNom(b))}</b> · ${esc(logNom(b.logementId))}<br>Entrée le ${fmtDate(b.debut)}</p>`+
+    (a.tot?`<div class="alert a-neg">⚠️ Arriérés : ${fcfa(a.tot)} (${a.n} mois). Vous pouvez les retenir sur la caution.</div>`:'')+
+    fld('Date de sortie','fin',today(),'date')+
+    num('Caution retenue (FCFA)','retenue',Math.min(a.tot,b.caution),false)+
+    fld('Motif de la retenue','motif',a.tot?'Loyers impayés':'','text',false)+
+    `<label class="chk"><input type="checkbox" name="solder" ${a.tot?'checked':''}> Utiliser la retenue pour solder les arriérés</label>`+
+    `<p class="muted">Caution versée : ${fcfa(b.caution)}. Le montant à restituer se calcule automatiquement.</p>`,
+    d=>{
+      if(!d.fin)fail('La date de sortie est requise');
+      if(d.fin<b.debut)fail('La date de sortie est antérieure à l’entrée');
+      const ret=Number(d.retenue)||0;
+      if(ret>b.caution)fail('La retenue dépasse la caution versée');
+      if(d.solder&&ret>0)allouer(b,a.list,Math.min(ret,a.tot),{date:d.fin,mode:'Retenue sur caution',ref:'Solde à la sortie'});
+      Object.assign(b,{fin:d.fin,cautionRetenue:ret,cautionRestituee:b.caution-ret,motifRetenue:d.motif.trim()});
+    },'Confirmer la sortie');
+};
+
+const locData=d=>{if(!d.nom.trim())fail('Le nom est requis');return {nom:d.nom.trim(),tel:d.tel.trim(),email:d.email.trim(),profession:d.profession.trim(),piece:d.piece.trim(),urgence:d.urgence.trim(),notes:d.notes.trim()};};
+A.addLocataire=()=>modal('Nouveau locataire',fLoc(),d=>{db.locataires.push({id:uid(),...locData(d)});});
+A.editLocataire=id=>{const t=locataire(id);modal('Modifier le locataire',fLoc(t),d=>{Object.assign(t,locData(d));});};
+A.delLocataire=async id=>{
+  if(db.baux.some(b=>b.locataireId===id))return toast('Ce locataire a un historique de baux : il ne peut pas être supprimé.');
+  if(!await ask('Supprimer ce locataire ?'))return;
+  db.locataires=db.locataires.filter(t=>t.id!==id);state.page='locataires';save();render();
+};
+
+/* Répartit un montant sur une liste de mois [{m,r}] ; le dernier mois reçoit le surplus */
+function allouer(b,mois,montant,info){
+  let left=montant;const out=[];
+  mois.forEach((x,i)=>{if(left<=0)return;const amt=i===mois.length-1?left:Math.min(left,x.r);if(amt>0){out.push({m:x.m,amt});left-=amt;}});
+  out.forEach(o=>db.paiements.push({id:uid(),bailId:b.id,mois:o.m,montant:o.amt,date:info.date,mode:info.mode,ref:info.ref||'',num:nextNum()}));
+  return out;
+}
+A.encaisser=bid=>{
+  const b=db.baux.find(x=>x.id===bid),s=statutBail(b,state.mois);
+  modal('Encaisser un loyer',
+    `<p><b>${esc(bailNom(b))}</b> · ${esc(logNom(b.logementId))}</p>`+
+    fld('À partir du mois','mois',state.mois,'month')+
+    num('Nombre de mois payés','nb',1)+
+    `<p class="muted">Loyer : ${fcfa(montantDu(b,state.mois))} · Déjà payé en ${moisLabel(state.mois)} : ${fcfa(s.p)}</p>`+
+    num('Montant reçu (FCFA)','montant',s.reste||montantDu(b,state.mois))+
+    `<p class="muted small">Pour plusieurs mois, le montant est réparti automatiquement, mois par mois.</p>`+
+    fld('Date de réception','date',today(),'date')+
+    sel('Mode de paiement','mode',MODES,'Espèces')+
+    fld('Référence de transaction (facultatif)','ref','','text',false),
+    d=>{
+      if(!d.mois)fail('Le mois est requis');
+      const m=Number(d.montant),n=Math.floor(Number(d.nb));
+      if(!(m>0))fail('Montant invalide');
+      if(!(n>=1&&n<=24))fail('Nombre de mois entre 1 et 24');
+      const mois=[...Array(n)].map((_,i)=>{const ym=shift(d.mois,i);return {m:ym,r:Math.max(0,montantDu(b,ym)-payeBail(b.id,ym))};});
+      const parts=allouer(b,mois,m,{date:d.date,mode:d.mode,ref:d.ref.trim()});
+      setTimeout(()=>toast(`Paiement enregistré${parts.length>1?` sur ${parts.length} mois`:''} ✅`),50);
+    },'Enregistrer le paiement');
+};
+A.regler=bid=>{
+  const b=db.baux.find(x=>x.id===bid),a=arrieres(b);
+  if(!a.n)return toast('Aucun arriéré pour ce bail.');
+  modal('Régler les arriérés',
+    `<p><b>${esc(bailNom(b))}</b> · ${esc(logNom(b.logementId))}</p><p class="muted">Mois impayés : ${a.list.map(x=>`${moisLabel(x.m)} (${fcfa(x.r)})`).join(', ')}</p>`+
+    num('Montant reçu (FCFA)','montant',a.tot)+
+    `<p class="muted small">Le montant solde d’abord les mois les plus anciens.</p>`+
+    fld('Date de réception','date',today(),'date')+sel('Mode de paiement','mode',MODES,'Espèces')+fld('Référence (facultatif)','ref','','text',false),
+    d=>{
+      const m=Number(d.montant);
+      if(!(m>0))fail('Montant invalide');
+      if(m>a.tot)fail(`Le montant dépasse les arriérés (${fcfa(a.tot)}). Utilisez « Encaisser » pour une avance.`);
+      allouer(b,a.list,m,{date:d.date,mode:d.mode,ref:d.ref.trim()});
+    },'Enregistrer');
+};
+A.delPaiement=async id=>{
+  if(!await ask('Supprimer ce paiement ?'))return;
+  db.paiements=db.paiements.filter(p=>p.id!==id);save();render();
+};
+
+function quitData(pid){
+  const p=db.paiements.find(x=>x.id===pid),b=db.baux.find(x=>x.id===p.bailId),l=logement(b.logementId);
+  return {p,b,l,t:locataire(b.locataireId),im:imm(l?.immeubleId)||{}};
+}
+A.quittance=pid=>{
+  const {p,b,l,t,im}=quitData(pid);
+  const texte=`*QUITTANCE DE LOYER N° ${p.num||'—'}*\n${im.nom||''}\nReçu de ${t?.nom||''} la somme de ${fcfa(p.montant)} pour le loyer de ${moisLabel(p.mois)} (logement ${l?.nom||''}).\nPayé le ${fmtDate(p.date)} par ${p.mode}${p.ref?' (réf. '+p.ref+')':''}.${im.proprietaire?'\nLe bailleur : '+im.proprietaire:''}\nMerci !`;
+  modal('Quittance de loyer',
+    `<div class="quit"><h4>QUITTANCE DE LOYER N° ${esc(p.num||'—')}</h4>
+    <p class="muted">${esc(im.nom)}${im.adresse?' — '+esc(im.adresse):''}</p>
+    <p>Reçu de <b>${esc(t?.nom)}</b> la somme de <b>${fcfa(p.montant)}</b> au titre du loyer de <b>${moisLabel(p.mois)}</b> pour le logement <b>${esc(l?.nom)}</b>${p.montant<montantDu(b,p.mois)?` (paiement partiel sur ${fcfa(montantDu(b,p.mois))})`:''}.</p>
+    <p class="muted">Payé le ${fmtDate(p.date)} · ${esc(p.mode)}${p.ref?' · réf. '+esc(p.ref):''}</p>
+    ${im.proprietaire?`<p class="muted">Le bailleur : ${esc(im.proprietaire)}</p>`:''}</div>
+    <div class="btns">
+      ${t?.tel?`<a class="btn wa" href="${esc(waLink(t.tel,texte))}" target="_blank" rel="noopener">Envoyer par WhatsApp</a>`:''}
+      <button type="button" class="ghost" data-a="dlQuit" data-id="${p.id}">⬇ Télécharger (imprimable)</button>
+      <button type="button" class="ghost" data-a="closeModal">Fermer</button>
+    </div>`,null);
+};
+const docHtml=(title,body)=>`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${title}</title>
+<style>body{font-family:Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#111}h1{font-size:22px;margin:0 0 10px}h2{font-size:17px;margin-top:28px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}td.n,th.n{text-align:right}.tot td{font-weight:bold;background:#f5f5f5}.foot{margin-top:40px;font-size:13px;color:#555}</style></head>
+<body>${body}<script>window.onload=function(){window.print();}<\/script></body></html>`;
+A.dlQuit=pid=>{
+  const {p,l,t,im}=quitData(pid);
+  const html=docHtml(`Quittance ${p.num||p.mois}`,`<h1>QUITTANCE DE LOYER N° ${esc(p.num||'—')}</h1>
+<p>${esc(im.nom)}<br>${esc(im.adresse)}</p>
+<p>Je soussigné(e) <b>${esc(im.proprietaire||'le bailleur')}</b>, reconnais avoir reçu de <b>${esc(t?.nom)}</b> la somme de <b>${fcfa(p.montant)}</b>, au titre du loyer de <b>${moisLabel(p.mois)}</b> pour le logement <b>${esc(l?.nom)}</b>.</p>
+<table><tr><td>Mode de paiement</td><td>${esc(p.mode)}</td></tr><tr><td>Date de réception</td><td>${fmtDate(p.date)}</td></tr>
+${p.ref?`<tr><td>Référence</td><td>${esc(p.ref)}</td></tr>`:''}<tr class="tot"><td>Montant reçu</td><td>${fcfa(p.montant)}</td></tr></table>
+<p class="foot">Fait le ${fmtDate(p.date)}.<br><br>Signature : ____________________</p>`);
+  saveFile(`quittance-${(t?.nom||'locataire').replace(/\s+/g,'-')}-${p.mois}.html`,html,'text/html');
+};
+
+const toCsv=rows=>'﻿'+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+A.csv=()=>{
+  const ym=state.mois,rows=[['Logement','Locataire','Dû','Payé','Reste','Statut']];
+  BAUX().filter(b=>bailActif(b,ym)).forEach(b=>{const s=statutBail(b,ym);rows.push([logNom(b.logementId),bailNom(b),s.du,s.p,s.reste,LBL[s.statut]]);});
+  saveFile(`loyers-${ym}.csv`,toCsv(rows),'text/csv');
+};
+A.csvBilan=()=>{
+  const rows=[['Mois','Attendu','Encaissé','Impayés','Dépenses','Net']];
+  bilan(state.annee).forEach(r=>rows.push([moisLabel(r.m),r.a,r.e,r.im,r.dp,r.net]));
+  saveFile(`bilan-${state.annee}.csv`,toCsv(rows),'text/csv');
+};
+A.csvSituation=()=>{
+  const rows=[['Locataire','Logement','Téléphone','Loyer','Mois impayés','Arriérés','Caution']];
+  situation().forEach(({b,a})=>rows.push([bailNom(b),logNom(b.logementId),locataire(b.locataireId)?.tel||'',montantDu(b,curMois()),a.n,a.tot,b.caution]));
+  saveFile(`situation-locataires-${today()}.csv`,toCsv(rows),'text/csv');
+};
+A.dlRapport=()=>{
+  const y=state.annee,rows=bilan(y),T=k=>sum(rows,r=>r[k]);
+  const titre=state.imm==='all'?(db.immeubles.length>1?'Tous les immeubles':db.immeubles[0]?.nom||''):imm(state.imm)?.nom;
+  const html=docHtml(`Rapport ${y}`,`<h1>Rapport de gestion locative ${y}</h1><p>${esc(titre)} — édité le ${fmtDate(today())}</p>
+<table><tr><th>Mois</th><th class="n">Attendu</th><th class="n">Encaissé</th><th class="n">Impayés</th><th class="n">Dépenses</th><th class="n">Net</th></tr>
+${rows.map(r=>`<tr><td>${moisLabel(r.m)}</td><td class="n">${fcfa(r.a)}</td><td class="n">${fcfa(r.e)}</td><td class="n">${fcfa(r.im)}</td><td class="n">${fcfa(r.dp)}</td><td class="n">${fcfa(r.net)}</td></tr>`).join('')}
+<tr class="tot"><td>Total</td><td class="n">${fcfa(T('a'))}</td><td class="n">${fcfa(T('e'))}</td><td class="n">${fcfa(T('im'))}</td><td class="n">${fcfa(T('dp'))}</td><td class="n">${fcfa(T('net'))}</td></tr></table>
+<p>Taux de recouvrement : <b>${T('a')?Math.round(Math.min(T('e'),T('a'))/T('a')*100):0} %</b></p>
+<h2>Situation des locataires</h2><table><tr><th>Locataire</th><th>Logement</th><th class="n">Mois impayés</th><th class="n">Arriérés</th></tr>
+${situation().map(({b,a})=>`<tr><td>${esc(bailNom(b))}</td><td>${esc(logNom(b.logementId))}</td><td class="n">${a.n}</td><td class="n">${fcfa(a.tot)}</td></tr>`).join('')}</table>`);
+  saveFile(`rapport-gestion-${y}.html`,html,'text/html');
+};
+
+A.addDepense=()=>{if(!db.immeubles.length)return toast('Ajoutez d’abord un immeuble.');modal('Nouvelle dépense',fDep(),d=>{if(!(Number(d.montant)>0))fail('Montant invalide');db.depenses.push({id:uid(),immeubleId:d.immeubleId,date:d.date,cat:d.cat,libelle:d.libelle.trim(),montant:Number(d.montant)});});};
+A.editDepense=id=>{const x=db.depenses.find(y=>y.id===id);modal('Modifier la dépense',fDep(x),d=>{if(!(Number(d.montant)>0))fail('Montant invalide');Object.assign(x,{immeubleId:d.immeubleId,date:d.date,cat:d.cat,libelle:d.libelle.trim(),montant:Number(d.montant)});});};
+A.delDepense=async id=>{if(!await ask('Supprimer cette dépense ?'))return;db.depenses=db.depenses.filter(x=>x.id!==id);save();render();};
+
+function incSave(i,d){
+  if(!d.logementId)fail('Choisissez un logement');
+  if(!d.titre.trim())fail('Décrivez le problème');
+  Object.assign(i,{logementId:d.logementId,titre:d.titre.trim(),description:d.description.trim(),date:d.date,priorite:d.priorite,statut:d.statut,cout:Number(d.cout)||0});
+  if(i.statut==='Résolu'&&!i.resolu)i.resolu=today();
+  if(i.statut!=='Résolu')i.resolu='';
+  if(d.toDep&&i.statut==='Résolu'&&i.cout>0&&!i.depenseId){
+    const dep={id:uid(),immeubleId:logement(i.logementId)?.immeubleId,date:today(),cat:'Entretien / réparations',libelle:`Incident : ${i.titre} (${logNom(i.logementId)})`,montant:i.cout};
+    db.depenses.push(dep);i.depenseId=dep.id;
+  }
+}
+A.addIncident=()=>{if(!LOGS().length)return toast('Ajoutez d’abord des logements.');modal('Signaler un incident',fInc(),d=>{const i={id:uid()};incSave(i,d);db.incidents.push(i);});};
+A.editIncident=id=>{const i=db.incidents.find(x=>x.id===id);modal('Modifier l’incident',fInc(i),d=>incSave(i,d));};
+A.delIncident=async id=>{if(!await ask('Supprimer cet incident ?'))return;db.incidents=db.incidents.filter(x=>x.id!==id);save();render();};
+
+A.setPin=()=>modal(db.settings.pin?'Changer le code PIN':'Activer un code PIN',
+  `<label>Nouveau code (4 à 8 chiffres)<input name="p1" type="password" inputmode="numeric" maxlength="8" required></label><label>Confirmer le code<input name="p2" type="password" inputmode="numeric" maxlength="8" required></label><p class="muted small">Notez-le bien : il sera demandé à chaque ouverture.</p>`,
+  d=>{if(!/^\d{4,8}$/.test(d.p1))fail('Le code doit contenir 4 à 8 chiffres');if(d.p1!==d.p2)fail('Les deux codes ne correspondent pas');db.settings.pin=hashPin(d.p1);state.unlocked=true;saveUi();});
+A.delPin=async()=>{if(!await ask('Désactiver le code PIN ?'))return;db.settings.pin='';save();render();};
+
+A.exportJson=()=>saveFile(`gestimmo-${today()}.json`,JSON.stringify(db,null,2),'application/json');
+A.demo=async()=>{
+  if(db.logements.length&&!await ask('Remplacer vos données actuelles par la démo ?'))return;
+  db=demoDb();state.imm='all';state.page='dash';state.mois=curMois();save();closeModal();render();
+};
+A.reset=async()=>{
+  if(!await ask('Effacer TOUTES les données ? Pensez à exporter une sauvegarde avant.'))return;
+  db=emptyDb();state.imm='all';state.page='dash';save();closeModal();render();
+};
+function importFile(f){
+  const r=new FileReader();
+  r.onload=()=>{
+    try{const d=JSON.parse(r.result);if(!Array.isArray(d.logements)||!Array.isArray(d.baux))throw new Error();db=migrate(d);state.imm='all';save();render();toast('Sauvegarde importée ✅');}
+    catch(e){toast('Fichier de sauvegarde invalide.');}
+  };
+  r.readAsText(f);
+}
+
+function demoDb(){
+  const ym=curMois();
+  const d=emptyDb();
+  d.immeubles=[
+    {id:'i1',nom:'Résidence Les Palmiers',adresse:'Cocody Riviera 3, Abidjan',proprietaire:'M. Tchea',contact:'0700000000'},
+    {id:'i2',nom:'Immeuble Le Baobab',adresse:'Yopougon Selmer, Abidjan',proprietaire:'M. Tchea',contact:'0700000000'}];
+  d.logements=[
+    {id:'l1',immeubleId:'i1',nom:'A1',type:'F2',etage:'RDC',loyer:150000,charges:10000},
+    {id:'l2',immeubleId:'i1',nom:'A2',type:'F3',etage:'RDC',loyer:200000,charges:10000},
+    {id:'l3',immeubleId:'i1',nom:'B1',type:'Studio',etage:'1',loyer:75000,charges:0},
+    {id:'l4',immeubleId:'i1',nom:'B2',type:'F2',etage:'1',loyer:150000,charges:10000},
+    {id:'l5',immeubleId:'i1',nom:'C1',type:'F3',etage:'2',loyer:200000,charges:15000},
+    {id:'r1',immeubleId:'i2',nom:'Studio 1',type:'Studio',etage:'RDC',loyer:60000,charges:0},
+    {id:'r2',immeubleId:'i2',nom:'Appart 2',type:'F2',etage:'1',loyer:100000,charges:5000},
+    {id:'r3',immeubleId:'i2',nom:'Boutique',type:'Local commercial',etage:'RDC',loyer:180000,charges:0}];
+  const T=(id,nom,tel,profession)=>({id,nom,tel,email:'',profession,piece:'',urgence:'',notes:''});
+  d.locataires=[T('t1','Kouamé Aya','0701020304','Infirmière'),T('t2','Koné Ibrahim','0505060708','Comptable'),T('t3','Traoré Mariam','0707080910','Enseignante'),
+    T('t4','Yao Serge','0102030405','Commercial'),T('t5','Bamba Fatou','0708091011','Étudiante'),T('t6','N’Guessan Paul','0506070809','Technicien'),T('t7','Diallo Aminata','0102131415','Commerçante')];
+  const fin=j=>{const x=new Date(today()+'T00:00:00');x.setDate(x.getDate()+j);return x.toISOString().slice(0,10);};
+  const B=(id,lid,tid,debut,o={})=>({id,logementId:lid,locataireId:tid,debut,fin:null,finPrevue:'',loyer:logementDemo(lid).loyer,charges:logementDemo(lid).charges,caution:logementDemo(lid).loyer*2,jour:5,revisions:[],cautionRetenue:0,cautionRestituee:0,motifRetenue:'',...o});
+  const logementDemo=id=>d.logements.find(l=>l.id===id);
+  d.baux=[
+    B('b1','l1','t1','2025-03-01',{loyer:140000,finPrevue:'2027-02-28',revisions:[{depuis:'2026-03',loyer:150000,charges:10000}]}),
+    B('b2','l2','t2','2025-09-01',{finPrevue:fin(40)}),
+    B('b3','l3','t3','2024-01-01',{fin:'2026-06-30',cautionRetenue:25000,cautionRestituee:125000,motifRetenue:'Réparation de la porte'}),
+    B('b4','l4','t4',shift(ym,-2)+'-01',{finPrevue:plusUnAn(shift(ym,-2)+'-01')}),
+    B('b5','r1','t5','2026-01-01',{finPrevue:'2026-12-31'}),
+    B('b6','r3','t7','2025-06-01',{finPrevue:fin(-3),jour:10}),
+    B('b7','r2','t6','2026-05-01',{finPrevue:'2027-04-30'})];
+  const modes=['Orange Money','Wave','Espèces','MTN MoMo','Virement bancaire'];
+  let seq=0;
+  const skip={b2:{[ym]:100000},b4:{[shift(ym,-1)]:0,[ym]:0},b5:{[shift(ym,-1)]:0},b7:{[ym]:0}};
+  d.baux.forEach(b=>{
+    const end=b.fin?b.fin.slice(0,7):ym;
+    for(let m=b.debut.slice(0,7);m<=end;m=shift(m,1)){
+      const sk=skip[b.id]||{},amt=m in sk?sk[m]:montantDu(b,m);
+      if(amt>0){seq++;d.paiements.push({id:uid(),bailId:b.id,mois:m,montant:amt,date:`${m}-0${1+seq%5}`,mode:modes[seq%5],ref:'',num:`${m.slice(0,4)}-${String(seq).padStart(4,'0')}`});}
+    }
+  });
+  d.settings.seq=seq;
+  for(let i=0;i<6;i++){
+    const m=shift(ym,-i);
+    d.depenses.push({id:uid(),immeubleId:'i1',date:`${m}-15`,cat:'Gardiennage',libelle:'Salaire du gardien',montant:50000});
+    d.depenses.push({id:uid(),immeubleId:'i1',date:`${m}-10`,cat:'Électricité',libelle:'Éclairage parties communes',montant:38000+i*2500});
+    d.depenses.push({id:uid(),immeubleId:'i2',date:`${m}-15`,cat:'Gardiennage',libelle:'Gardien de nuit',montant:30000});
+  }
+  d.depenses.push({id:uid(),immeubleId:'i1',date:`${shift(ym,-1)}-20`,cat:'Entretien / réparations',libelle:'Plomberie logement A2',montant:35000});
+  d.depenses.push({id:uid(),immeubleId:'i2',date:`${shift(ym,-3)}-08`,cat:'Taxes / impôts',libelle:'Impôt foncier',montant:120000});
+  d.incidents=[
+    {id:uid(),logementId:'l2',titre:'Fuite d’eau dans la salle de bain',description:'Signalée par le locataire, le robinet coule en permanence.',date:`${ym}-12`,priorite:'Urgente',statut:'Ouvert',cout:0},
+    {id:uid(),logementId:'r3',titre:'Rideau métallique bloqué',description:'Le rideau de la boutique ne descend plus complètement.',date:`${ym}-06`,priorite:'Normale',statut:'En cours',cout:45000},
+    {id:uid(),logementId:'l1',titre:'Ampoules du couloir à remplacer',description:'',date:`${shift(ym,-1)}-18`,priorite:'Basse',statut:'Résolu',cout:8000,resolu:`${shift(ym,-1)}-19`}];
+  return d;
+}
+
+/* ---------- Écouteurs ---------- */
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-a]');
+  if(el){const fn=A[el.dataset.a];if(fn){e.preventDefault();fn(el.dataset.id);}return;}
+  chartTip(e);
+});
+document.addEventListener('pointerover',chartTip);
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+document.addEventListener('input',e=>{
+  if(e.target.id==='search'){state.search=e.target.value;const l=document.getElementById('liste');if(l)l.innerHTML=listeLocataires();}
+});
+document.addEventListener('change',e=>{
+  if(e.target.id==='mois'&&e.target.value){state.mois=e.target.value;render();}
+  if(e.target.id==='immSel'){state.imm=e.target.value;render();}
+  if(e.target.id==='importFile'&&e.target.files[0])importFile(e.target.files[0]);
+});
+document.addEventListener('submit',e=>{
+  if(e.target.id!=='lockForm')return;
+  e.preventDefault();
+  const i=document.getElementById('pinIn');
+  if(hashPin(i.value)===db.settings.pin){state.unlocked=true;i.value='';saveUi();checkLock();}
+  else{i.value='';toast('Code incorrect');}
+});
+window.addEventListener('scroll',()=>document.getElementById('ctip').classList.add('hidden'),{passive:true});
+
+render();
+</script>
+</body>
+</html>
