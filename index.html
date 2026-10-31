@@ -108,6 +108,13 @@ table.rt{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;
 .nb{background:#dc2626;color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;margin-left:4px}
 .msg{background:#f0fdf4;border-radius:10px;padding:10px 12px;font-size:14px;margin:6px 0}
 details summary{cursor:pointer;margin-top:6px}
+.pj{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}.pj-i{position:relative;width:104px;text-align:center;font-size:11px;color:#4b5563}.pj-i img{width:104px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;cursor:zoom-in;display:block}.pj-x{position:absolute;top:2px;right:2px;padding:1px 7px;font-size:12px;background:#fee2e2;color:#991b1b;border-radius:99px}
+.mat{display:grid;grid-template-columns:2fr .7fr 1.1fr 1.4fr auto;gap:6px;margin:6px 0}.mat input{padding:8px}
+@media(max-width:600px){.mat{grid-template-columns:1fr 1fr;}.mat input[name=art],.mat input[name=four]{grid-column:span 2}}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid2 label{margin:6px 0}
+.sheet h4{margin:16px 0 4px;color:#0f4c3a}.big2{font-size:16px;color:#0f4c3a}
+table.mini{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}table.mini th,table.mini td{padding:6px;border-bottom:1px solid #f1f5f9;text-align:left}table.mini .n{text-align:right}
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:35;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:zoom-out}.lb img{max-width:94vw;max-height:84vh;border-radius:8px}.lb div{color:#fff;font-size:14px}
 .hidden-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
 @media(max-width:959px){
   .rt thead{display:none}
@@ -138,14 +145,14 @@ details summary{cursor:pointer;margin-top:6px}
 /* ===== GestImmo v2 — gestion locative ===== */
 const SCRIPT=document.currentScript.textContent;
 const STYLE=document.querySelector('style').textContent;
-const NAV=[['dash','🏠','Accueil'],['immeubles','🏢','Immeubles'],['locataires','👥','Locataires'],['loyers','💰','Loyers'],['relances','📣','Relances'],['depenses','🧾','Dépenses'],['incidents','🛠️','Incidents'],['rapports','📊','Rapports'],['parametres','⚙️','Paramètres']];
+const NAV=[['dash','🏠','Accueil'],['immeubles','🏢','Immeubles'],['locataires','👥','Locataires'],['loyers','💰','Loyers'],['relances','📣','Relances'],['depenses','🧾','Dépenses'],['incidents','🛠️','Réparations'],['rapports','📊','Rapports'],['parametres','⚙️','Paramètres']];
 document.body.insertAdjacentHTML('afterbegin',`<header class="top"><b class="brand">🏢 GestImmo</b><div class="topr"><select id="immSel" aria-label="Immeuble"></select><button class="ghost sm hidden" id="lockBtn" data-a="lock" title="Verrouiller">🔒</button></div></header>
 <nav>${NAV.map(n=>`<button data-a="goto" data-id="${n[0]}">${n[1]} ${n[2]}</button>`).join('')}</nav>
 <main id="app"></main>
 <div id="toast" class="toast hidden"></div>
 <div id="ctip" class="ctip hidden"></div>
 <div id="modal" class="modal hidden"><div class="sheet"><div class="sheet-head"><h3 id="mTitle" style="margin:0"></h3><button type="button" class="ghost sm" data-a="closeModal">✕</button></div><form id="mForm" autocomplete="off"></form></div></div>
-<div id="lock" class="lock hidden"><form id="lockForm" class="lockbox"><h2>🔒 GestImmo</h2><p class="muted">Entrez votre code PIN</p><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8"><button class="primary" style="width:100%;margin-top:12px">Déverrouiller</button></form></div>`);
+<div id="lb" class="lb hidden" data-a="lbClose"><img id="lbImg" alt=""><div id="lbCap"></div></div><div id="lock" class="lock hidden"><form id="lockForm" class="lockbox"><h2>🔒 GestImmo</h2><p class="muted">Entrez votre code PIN</p><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8"><button class="primary" style="width:100%;margin-top:12px">Déverrouiller</button></form></div>`);
 
 const KEY='gestimmo_v1';
 const CATS=['Électricité','Eau','Gardiennage','Entretien / réparations','Travaux','Taxes / impôts','Assurance','Frais de gestion','Autre'];
@@ -207,7 +214,7 @@ function saveUi(){try{sessionStorage.setItem(KEY+'_ui',JSON.stringify({page:stat
 function save(){
   PIDX=null;
   db._ts=Date.now();
-  try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}
+  try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){if(!ART)toast('⚠️ Mémoire de l’appareil pleine : exportez une sauvegarde puis retirez des photos anciennes.');}
   if(ART&&!readOnly){clearTimeout(pubTimer);pubTimer=setTimeout(publishNow,1200);}
 }
 async function publishNow(){
@@ -360,7 +367,7 @@ function modal(title,body,onOk,okLabel='Enregistrer'){
   f.onsubmit=e=>{
     e.preventDefault();
     if(!onOk)return;
-    try{const r=onOk(Object.fromEntries(new FormData(f)));if(r!==false){closeModal();save();render();}}
+    try{const fd=new FormData(f);const r=onOk(Object.fromEntries(fd),fd);if(r!==false){closeModal();save();render();}}
     catch(err){toast(err.message);}
   };
   document.getElementById('modal').classList.remove('hidden');
@@ -371,8 +378,7 @@ function closeModal(){document.getElementById('modal').classList.add('hidden');}
 const fImm=(i={})=>fld('Nom de l’immeuble','nom',i.nom||'')+fld('Adresse / quartier','adresse',i.adresse||'','text',false)+fld('Propriétaire / bailleur','proprietaire',i.proprietaire||'','text',false)+fld('Contact (téléphone)','contact',i.contact||'','tel',false);
 const fLog=(l={})=>sel('Immeuble','immeubleId',immOpts(),l.immeubleId||defImm())+fld('Nom / n° (ex : A1, Apt 3)','nom',l.nom||'')+sel('Type de logement','type',TYPES.includes(l.type)||!l.type?TYPES:[...TYPES,l.type],l.type||'Chambre salon')+fld('Étage','etage',l.etage??'RDC','text',false)+num('Loyer mensuel (FCFA)','loyer',l.loyer??'')+num('Charges mensuelles (FCFA)','charges',l.charges??0,false);
 const fLoc=(t={})=>fld('Nom complet','nom',t.nom||'')+fld('Téléphone (WhatsApp)','tel',t.tel||'','tel',false)+fld('Email','email',t.email||'','email',false)+fld('Profession / employeur','profession',t.profession||'','text',false)+fld('Pièce d’identité (type et n°)','piece',t.piece||'','text',false)+fld('Personne à contacter en cas d’urgence','urgence',t.urgence||'','text',false)+`<label>Notes<textarea name="notes" rows="3">${esc(t.notes||'')}</textarea></label>`;
-const fDep=(d={})=>sel('Immeuble','immeubleId',immOpts(),d.immeubleId||defImm())+fld('Date','date',d.date||today(),'date')+sel('Catégorie','cat',CATS,d.cat||CATS[0])+fld('Libellé','libelle',d.libelle||'')+num('Montant (FCFA)','montant',d.montant??'');
-const fInc=(i={})=>sel('Logement','logementId',LOGS().map(l=>[l.id,(db.immeubles.length>1?imm(l.immeubleId)?.nom+' — ':'')+l.nom]),i.logementId||'')+fld('Problème signalé','titre',i.titre||'')+`<label>Description<textarea name="description" rows="3">${esc(i.description||'')}</textarea></label>`+fld('Date du signalement','date',i.date||today(),'date')+sel('Priorité','priorite',PRIOS,i.priorite||'Normale')+sel('Statut','statut',STATS,i.statut||'Ouvert')+num('Coût de la réparation (FCFA)','cout',i.cout||0,false)+(i.depenseId?'<p class="muted">✔ Coût déjà ajouté aux dépenses.</p>':`<label class="chk"><input type="checkbox" name="toDep"> Ajouter le coût aux dépenses une fois résolu</label>`);
+const fDep=(d={})=>sel('Immeuble','immeubleId',immOpts(),d.immeubleId||defImm())+fld('Date','date',d.date||today(),'date')+sel('Catégorie','cat',CATS,d.cat||CATS[0])+fld('Libellé / motif','libelle',d.libelle||'')+fld('Fournisseur / bénéficiaire','fournisseur',d.fournisseur||'','text',false)+num('Montant (FCFA)','montant',d.montant??'')+(d.incidentId?'<p class="muted small">Cette dépense vient d’une réparation : modifiez la réparation pour changer le montant ou les preuves.</p>':`<h4>📎 Justificatifs</h4>${pjInputs(['facture'],'Photographiez le reçu ou la facture.')}`);
 
 /* ---------- Pages ---------- */
 function pageDash(){
@@ -509,6 +515,7 @@ function pageFiche(){
     ${kpi('Loyer actuel',actif?fcfa(montantDu(actif,curMois())):'—',actif?`Échéance le ${actif.jour} du mois`:'')}
     ${actif?kpi('Payé jusqu’à',payeJusqua(actif)?moisLabel(payeJusqua(actif)):'—',avance(actif).n?`${avance(actif).n} mois d’avance (${fcfa(avance(actif).tot)})`:'',payeJusqua(actif)&&payeJusqua(actif)>=curMois()?'ok':'neg'):''}
   </div>
+  ${actif&&sum(reparationsLoc(actif),chargeLoc)?`<div class="alert a-warn">🛠️ Réparations à sa charge non remboursées : <b>${fcfa(sum(reparationsLoc(actif),chargeLoc))}</b> — ${reparationsLoc(actif).map(i=>`<button class="linkbtn" data-a="voirInc" data-id="${i.id}">${esc(i.titre)}</button>`).join(', ')}</div>`:''}
   <h3>Baux (entrées / sorties)</h3>
   ${baux.map(b=>{
     const a=arrieres(b);
@@ -550,14 +557,15 @@ function pageDepenses(){
   const tot=sum(list,d=>d.montant);
   const parCat=CATS.map(c=>[c,sum(list.filter(d=>d.cat===c),d=>d.montant)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
   const multi=db.immeubles.length>1&&state.imm==='all';
-  const cols=[['Date'],...(multi?[['Immeuble']]:[]),['Catégorie'],['Libellé'],['Montant','n'],['','act']];
+  const cols=[['Date'],...(multi?[['Immeuble']]:[]),['Catégorie'],['Libellé'],['Montant','n'],['Justificatifs'],['','act']];
   return `${monthNav()}
   <div class="row"><h2>Dépenses</h2><button class="primary sm" data-a="addDepense">+ Dépense</button></div>
   <div class="cols2">
     <div class="card"><p class="muted">Total ${moisLabel(ym)}</p><p class="big">${fcfa(tot)}</p><p class="muted">Encaissé ce mois : ${fcfa(encaisseMois(ym))} · Solde : ${fcfa(encaisseMois(ym)-tot)}</p></div>
     <div class="card"><p class="muted">Par catégorie</p>${parCat.map(([c,v])=>`<div class="row"><span>${esc(c)}</span><b>${fcfa(v)}</b></div>`).join('')||'<p class="muted">—</p>'}</div>
   </div>
-  ${tbl(cols,list.map(d=>[fmtDate(d.date),...(multi?[esc(imm(d.immeubleId)?.nom||'—')]:[]),esc(d.cat),esc(d.libelle),fcfa(d.montant),
+  ${tbl(cols,list.map(d=>[fmtDate(d.date),...(multi?[esc(imm(d.immeubleId)?.nom||'—')]:[]),esc(d.cat),esc(d.libelle)+(d.fournisseur?`<div class="muted small">${esc(d.fournisseur)}</div>`:''),fcfa(d.montant),
+    nbPJ(d)?`<button class="sm" data-a="voirDep" data-id="${d.id}">📎 ${nbPJ(d)}</button>`:'<span class="muted small">—</span>',
     `<button class="sm ghost" data-a="editDepense" data-id="${d.id}">Modifier</button><button class="sm danger" data-a="delDepense" data-id="${d.id}">✕</button>`]),'Aucune dépense ce mois-ci.')}`;
 }
 
@@ -565,12 +573,14 @@ function pageIncidents(){
   const all=INCS().sort((a,b)=>b.date.localeCompare(a.date));
   const list=state.incF==='ouverts'?all.filter(i=>i.statut!=='Résolu'):all;
   const pc={Basse:'',Normale:'warn',Urgente:'neg'},sc={Ouvert:'neg','En cours':'warn','Résolu':'ok'};
-  return `<div class="row"><h2>Incidents & maintenance</h2><button class="primary sm" data-a="addIncident">+ Signaler</button></div>
+  const cy=all.filter(i=>i.date.slice(0,4)===curMois().slice(0,4)),aRec=sum(INCS().filter(i=>i.statut==='Résolu'&&!i.rembourse),chargeLoc);
+  return `<div class="row"><h2>Réparations & maintenance</h2><button class="primary sm" data-a="addIncident">+ Nouvelle réparation</button></div>
+  <div class="grid">${kpi('Coût des réparations '+curMois().slice(0,4),fcfa(sum(cy,i=>i.cout||0)),`${cy.length} intervention(s)`)}${kpi('Dont matériel',fcfa(sum(cy,incMat)),`Main d’œuvre ${fcfa(sum(cy,i=>i.mo||0))}`)}${kpi('À récupérer auprès des locataires',fcfa(aRec),'Réparations à leur charge',aRec?'neg':'ok')}</div>
   <div class="seg"><button class="${state.incF==='ouverts'?'on':''}" data-a="incF" data-id="ouverts">En cours (${all.filter(i=>i.statut!=='Résolu').length})</button><button class="${state.incF==='tous'?'on':''}" data-a="incF" data-id="tous">Tous (${all.length})</button></div>
-  ${tbl([['Date'],['Logement'],['Problème'],['Priorité'],['Statut'],['Coût','n'],['','act']],list.map(i=>[fmtDate(i.date),esc(logNom(i.logementId)),
-    `<b>${esc(i.titre)}</b>${i.description?`<div class="muted small">${esc(i.description)}</div>`:''}`,
-    `<span class="badge ${pc[i.priorite]}">${i.priorite==='Urgente'?'🔴 ':''}${esc(i.priorite)}</span>`,`<span class="badge ${sc[i.statut]}">${esc(i.statut)}</span>`,i.cout?fcfa(i.cout):'—',
-    `<button class="sm ghost" data-a="editIncident" data-id="${i.id}">Modifier</button><button class="sm danger" data-a="delIncident" data-id="${i.id}">✕</button>`]),state.incF==='ouverts'?'✅ Aucun incident en cours.':'Aucun incident enregistré.')}`;
+  ${tbl([['Date'],['Logement'],['Réparation & motif'],['Priorité'],['Statut'],['Coût','n'],['Preuves'],['','act']],list.map(i=>[fmtDate(i.date),esc(logNom(i.logementId)),
+    `<button class="linkbtn" data-a="voirInc" data-id="${i.id}">${esc(i.titre)}</button><div class="muted small">${esc(i.cause||'')}${i.charge&&i.charge!=='Propriétaire'?` · <span class="${i.rembourse?'ok':'neg'}">à la charge : ${esc(i.charge)}${i.rembourse?' (remboursé)':''}</span>`:''}</div>`,
+    `<span class="badge ${pc[i.priorite]}">${i.priorite==='Urgente'?'🔴 ':''}${esc(i.priorite)}</span>`,`<span class="badge ${sc[i.statut]}">${esc(i.statut)}</span>`,i.cout?fcfa(i.cout):'—',(i.pieces||[]).length?`<span class="badge ok">📎 ${(i.pieces||[]).length}</span>`:'<span class="badge warn">Aucune</span>',
+    `<button class="sm" data-a="voirInc" data-id="${i.id}">Voir</button><button class="sm ghost" data-a="editIncident" data-id="${i.id}">Modifier</button><button class="sm danger" data-a="delIncident" data-id="${i.id}">✕</button>`]),state.incF==='ouverts'?'✅ Aucune réparation en cours.':'Aucune réparation enregistrée.')}`;
 }
 
 function bilan(y){
@@ -741,13 +751,15 @@ A.editBail=bid=>{
 };
 
 A.sortie=bid=>{
-  const b=db.baux.find(x=>x.id===bid),a=arrieres(b);
+  const b=db.baux.find(x=>x.id===bid),a=arrieres(b),rp=reparationsLoc(b),rpt=sum(rp,chargeLoc);
+  const mot=[a.tot?'Loyers impayés':'',...rp.map(i=>`Réparation : ${i.titre} (${fcfa(chargeLoc(i))})`)].filter(Boolean).join(' ; ');
   modal('Enregistrer la sortie',
     `<p class="muted"><b>${esc(bailNom(b))}</b> · ${esc(logNom(b.logementId))}<br>Entrée le ${fmtDate(b.debut)}</p>`+
     (a.tot?`<div class="alert a-neg">⚠️ Arriérés : ${fcfa(a.tot)} (${a.n} mois). Vous pouvez les retenir sur la caution.</div>`:'')+
+    (rpt?`<div class="alert a-warn">🛠️ Réparations à sa charge non remboursées : ${fcfa(rpt)} — ${rp.map(i=>esc(i.titre)).join(', ')} (preuves dans Réparations).</div>`:'')+
     fld('Date de sortie','fin',today(),'date')+
-    num('Caution retenue (FCFA)','retenue',Math.min(a.tot,b.caution),false)+
-    fld('Motif de la retenue','motif',a.tot?'Loyers impayés':'','text',false)+
+    num('Caution retenue (FCFA)','retenue',Math.min(a.tot+rpt,b.caution),false)+
+    fld('Motif de la retenue','motif',mot,'text',false)+
     `<label class="chk"><input type="checkbox" name="solder" ${a.tot?'checked':''}> Utiliser la retenue pour solder les arriérés</label>`+
     `<p class="muted">Caution versée : ${fcfa(b.caution)}. Le montant à restituer se calcule automatiquement.</p>`,
     d=>{
@@ -756,6 +768,7 @@ A.sortie=bid=>{
       const ret=Number(d.retenue)||0;
       if(ret>b.caution)fail('La retenue dépasse la caution versée');
       if(d.solder&&ret>0){const pl=planPaiement(b,Math.min(ret,a.tot));if(pl.lignes.length)enregistrer(b,pl.lignes,{date:d.fin,mode:'Retenue sur caution',ref:'Solde à la sortie'});}
+      if(rpt&&ret>=a.tot+rpt)rp.forEach(i=>i.rembourse=true);
       Object.assign(b,{fin:d.fin,cautionRetenue:ret,cautionRestituee:b.caution-ret,motifRetenue:d.motif.trim()});
     },'Confirmer la sortie');
 };
@@ -949,7 +962,7 @@ A.shareRecu=async rid=>{
   saveFile(name,blob,'image/png');
 };
 const docHtml=(title,body)=>`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${title}</title>
-<style>.doc-brand{display:flex;gap:14px;align-items:center;border-bottom:2px solid #0f4c3a;padding-bottom:12px;margin-bottom:18px;font-size:13px;color:#444}.doc-brand img{max-height:64px;max-width:120px}.doc-brand b{font-size:18px;color:#0f4c3a}table.sig td{border:0;width:50%;vertical-align:top}.small{font-size:12px;color:#666}p{line-height:1.5}body{font-family:Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#111}h1{font-size:22px;margin:0 0 10px}h2{font-size:17px;margin-top:28px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}td.n,th.n{text-align:right}.tot td{font-weight:bold;background:#f5f5f5}.foot{margin-top:40px;font-size:13px;color:#555}</style></head>
+<style>.gal{display:flex;flex-wrap:wrap;gap:10px}.gal figure{margin:0;width:31%}.gal img{width:100%;border:1px solid #ddd;border-radius:6px}.gal figcaption{font-size:11px;color:#666}.doc-brand{display:flex;gap:14px;align-items:center;border-bottom:2px solid #0f4c3a;padding-bottom:12px;margin-bottom:18px;font-size:13px;color:#444}.doc-brand img{max-height:64px;max-width:120px}.doc-brand b{font-size:18px;color:#0f4c3a}table.sig td{border:0;width:50%;vertical-align:top}.small{font-size:12px;color:#666}p{line-height:1.5}body{font-family:Arial,sans-serif;max-width:900px;margin:30px auto;padding:20px;color:#111}h1{font-size:22px;margin:0 0 10px}h2{font-size:17px;margin-top:28px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}td.n,th.n{text-align:right}.tot td{font-weight:bold;background:#f5f5f5}.foot{margin-top:40px;font-size:13px;color:#555}</style></head>
 <body>${body}<script>window.onload=function(){window.print();}<\/script></body></html>`;
 A.dlRecu=rid=>{
   const R=recuData(rid);
@@ -993,23 +1006,10 @@ ${situation().map(({b,a})=>`<tr><td>${esc(bailNom(b))}</td><td>${esc(logNom(b.lo
   saveFile(`rapport-gestion-${y}.html`,html,'text/html');
 };
 
-A.addDepense=()=>{if(!db.immeubles.length)return toast('Ajoutez d’abord un immeuble.');modal('Nouvelle dépense',fDep(),d=>{if(!(Number(d.montant)>0))fail('Montant invalide');db.depenses.push({id:uid(),immeubleId:d.immeubleId,date:d.date,cat:d.cat,libelle:d.libelle.trim(),montant:Number(d.montant)});});};
-A.editDepense=id=>{const x=db.depenses.find(y=>y.id===id);modal('Modifier la dépense',fDep(x),d=>{if(!(Number(d.montant)>0))fail('Montant invalide');Object.assign(x,{immeubleId:d.immeubleId,date:d.date,cat:d.cat,libelle:d.libelle.trim(),montant:Number(d.montant)});});};
+A.addDepense=()=>{if(!db.immeubles.length)return toast('Ajoutez d’abord un immeuble.');PJ=[];modal('Nouvelle dépense',fDep(),d=>{if(!(Number(d.montant)>0))fail('Montant invalide');db.depenses.push({id:uid(),immeubleId:d.immeubleId,date:d.date,cat:d.cat,libelle:d.libelle.trim(),fournisseur:d.fournisseur.trim(),montant:Number(d.montant),pieces:PJ.slice()});});};
+A.editDepense=id=>{const x=db.depenses.find(y=>y.id===id);PJ=(x.pieces||[]).slice();modal('Modifier la dépense',fDep(x),d=>{if(!(Number(d.montant)>0))fail('Montant invalide');Object.assign(x,{immeubleId:d.immeubleId,date:d.date,cat:d.cat,libelle:d.libelle.trim(),fournisseur:d.fournisseur.trim(),montant:Number(d.montant)});if(!x.incidentId)x.pieces=PJ.slice();});};
 A.delDepense=async id=>{if(!await ask('Supprimer cette dépense ?'))return;db.depenses=db.depenses.filter(x=>x.id!==id);save();render();};
 
-function incSave(i,d){
-  if(!d.logementId)fail('Choisissez un logement');
-  if(!d.titre.trim())fail('Décrivez le problème');
-  Object.assign(i,{logementId:d.logementId,titre:d.titre.trim(),description:d.description.trim(),date:d.date,priorite:d.priorite,statut:d.statut,cout:Number(d.cout)||0});
-  if(i.statut==='Résolu'&&!i.resolu)i.resolu=today();
-  if(i.statut!=='Résolu')i.resolu='';
-  if(d.toDep&&i.statut==='Résolu'&&i.cout>0&&!i.depenseId){
-    const dep={id:uid(),immeubleId:logement(i.logementId)?.immeubleId,date:today(),cat:'Entretien / réparations',libelle:`Incident : ${i.titre} (${logNom(i.logementId)})`,montant:i.cout};
-    db.depenses.push(dep);i.depenseId=dep.id;
-  }
-}
-A.addIncident=()=>{if(!LOGS().length)return toast('Ajoutez d’abord des logements.');modal('Signaler un incident',fInc(),d=>{const i={id:uid()};incSave(i,d);db.incidents.push(i);});};
-A.editIncident=id=>{const i=db.incidents.find(x=>x.id===id);modal('Modifier l’incident',fInc(i),d=>incSave(i,d));};
 A.delIncident=async id=>{if(!await ask('Supprimer cet incident ?'))return;db.incidents=db.incidents.filter(x=>x.id!==id);save();render();};
 
 A.setPin=()=>modal(db.settings.pin?'Changer le code PIN':'Activer un code PIN',
@@ -1091,10 +1091,114 @@ function demoDb(){
   d.depenses.push({id:uid(),immeubleId:'i2',date:`${shift(ym,-3)}-08`,cat:'Taxes / impôts',libelle:'Impôt foncier',montant:120000});
   d.incidents=[
     {id:uid(),logementId:'l2',titre:'Fuite d’eau dans la salle de bain',description:'Signalée par le locataire, le robinet coule en permanence.',date:`${ym}-12`,priorite:'Urgente',statut:'Ouvert',cout:0},
-    {id:uid(),logementId:'r3',titre:'Rideau métallique bloqué',description:'Le rideau de la boutique ne descend plus complètement.',date:`${ym}-06`,priorite:'Normale',statut:'En cours',cout:45000},
+    {id:uid(),logementId:'r3',titre:'Rideau métallique bloqué',description:'Le rideau de la boutique ne descend plus complètement. Ressort cassé à remplacer.',date:`${ym}-06`,priorite:'Normale',statut:'En cours',cause:'Panne / vétusté',charge:'Propriétaire',materiel:[{art:'Ressort de rideau',qte:2,pu:12500,four:'Quincaillerie Adjamé'},{art:'Graisse',qte:1,pu:2500,four:'Quincaillerie Adjamé'}],mo:15000,artisan:'Koffi (soudeur)',artisanTel:'0102030405',cout:42500,pieces:[]},
+    {id:'incV',logementId:'l4',titre:'Vitre de fenêtre cassée',description:'Vitre de la chambre cassée par le locataire (ballon). Vitre remplacée.',date:`${shift(ym,-1)}-22`,priorite:'Normale',statut:'Résolu',resolu:`${shift(ym,-1)}-24`,cause:'Dégradation par le locataire',charge:'Locataire',materiel:[{art:'Vitre 60×80',qte:1,pu:18000,four:'Vitrerie Cocody'},{art:'Mastic',qte:1,pu:2000,four:'Vitrerie Cocody'}],mo:7000,artisan:'Moussa (vitrier)',artisanTel:'0708091011',cout:27000,pieces:[]},
     {id:uid(),logementId:'l1',titre:'Ampoules du couloir à remplacer',description:'',date:`${shift(ym,-1)}-18`,priorite:'Basse',statut:'Résolu',cout:8000,resolu:`${shift(ym,-1)}-19`}];
   return d;
 }
+
+/* ===================== Réparations : motif, matériel, main d'œuvre, preuves ===================== */
+const CAUSES=['Usure normale','Panne / vétusté','Dégradation par le locataire','Sinistre (inondation, incendie…)','Entretien préventif','Autre'];
+const CHARGES=['Propriétaire','Locataire','Partagé (50/50)'];
+const PJT={avant:'📷 Photo avant',apres:'✅ Photo après',facture:'🧾 Reçu / facture'};
+let PJ=[],VIEWPJ=[];
+function pjHtml(){VIEWPJ=PJ;return PJ.length?`<div class="pj">${PJ.map((p,k)=>`<div class="pj-i"><img src="${p.data}" data-a="voirImg" data-id="${k}" alt=""><span>${PJT[p.type]||''}</span><button type="button" class="pj-x" data-a="pjDel" data-id="${k}" title="Retirer">✕</button></div>`).join('')}</div>`:'<p class="muted small">Aucune pièce jointe pour l’instant.</p>';}
+function pjInputs(types,aide){return `<div class="btns">${types.map(t=>`<label class="btn sm ghost" style="position:relative;margin:0">${PJT[t]}<input type="file" accept="image/*" multiple class="hidden-input pjFile" data-type="${t}"></label>`).join('')}</div><div id="pjList">${pjHtml()}</div><p class="muted small">${aide||'Les photos sont compressées automatiquement.'}</p>`;}
+function compressImg(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1000/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(i,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',0.6));};i.onerror=rej;i.src=r.result;};r.onerror=rej;r.readAsDataURL(f);});}
+async function addPJ(files,type){for(const f of files){if(!/^image\//.test(f.type)){toast('Seules les images sont acceptées : prenez le reçu en photo');continue;}try{PJ.push({id:uid(),type,data:await compressImg(f),date:today()});}catch(e){toast('Image illisible');}}const l=document.getElementById('pjList');if(l)l.innerHTML=pjHtml();}
+A.pjDel=k=>{PJ.splice(Number(k),1);document.getElementById('pjList').innerHTML=pjHtml();};
+A.voirImg=k=>{const p=VIEWPJ[Number(k)];if(!p)return;document.getElementById('lbImg').src=p.data;document.getElementById('lbCap').textContent=(PJT[p.type]||'')+(p.date?' · '+fmtDate(p.date):'');document.getElementById('lb').classList.remove('hidden');};
+A.lbClose=()=>document.getElementById('lb').classList.add('hidden');
+
+const matTot=m=>(Number(m.qte)||1)*(Number(m.pu)||0);
+const incMat=i=>sum(i.materiel||[],matTot);
+function matRow(m={}){const id='mr'+uid();return `<div class="mat" id="${id}"><input name="art" placeholder="Article (ex : robinet)" value="${esc(m.art||'')}"><input name="qte" type="number" min="0" step="any" placeholder="Qté" value="${m.qte??1}"><input name="pu" type="number" min="0" step="1" inputmode="numeric" placeholder="Prix unitaire" value="${m.pu??''}"><input name="four" placeholder="Fournisseur / boutique" value="${esc(m.four||'')}"><button type="button" class="sm danger" data-a="matDel" data-id="${id}">✕</button></div>`;}
+A.matAdd=()=>{document.getElementById('mats').insertAdjacentHTML('beforeend',matRow());majIncTot();};
+A.matDel=id=>{document.getElementById(id)?.remove();majIncTot();};
+function majIncTot(){
+  const f=document.getElementById('mForm'),el=document.getElementById('incTot');if(!f||!el)return;
+  const fd=new FormData(f),pu=fd.getAll('pu'),q=fd.getAll('qte');
+  const mat=sum(pu.map((p,k)=>({pu:p,qte:q[k]})),matTot),mo=Number(fd.get('mo'))||0;
+  el.innerHTML=`Matériel <b>${fcfa(mat)}</b> + Main d’œuvre <b>${fcfa(mo)}</b> = <b class="big2">${fcfa(mat+mo)}</b>`;
+  const c=fd.get('charge'),rb=document.getElementById('rembBox');if(rb)rb.classList.toggle('hidden',c==='Propriétaire');
+}
+const fInc=(i={})=>{
+  const mats=(i.materiel&&i.materiel.length)?i.materiel:(i.cout&&!i.mo?[{art:'Coût global (ancien enregistrement)',qte:1,pu:i.cout}]:[{}]);
+  return sel('Logement','logementId',LOGS().map(l=>[l.id,(db.immeubles.length>1?imm(l.immeubleId)?.nom+' — ':'')+l.nom+' ('+l.type+')']),i.logementId||'')+
+  fld('Problème / travaux','titre',i.titre||'')+
+  `<div class="grid2">${fld('Date du constat','date',i.date||today(),'date')}${sel('Priorité','priorite',PRIOS,i.priorite||'Normale')}</div>`+
+  sel('Statut','statut',STATS,i.statut||'Ouvert')+
+  `<h4>📝 Motif de la réparation</h4><div class="grid2">${sel('Cause','cause',CAUSES,i.cause||'Usure normale')}${sel('À la charge de','charge',CHARGES,i.charge||'Propriétaire')}</div>`+
+  `<label>Constat détaillé (ce qui s’est passé, ce qui a été réparé)<textarea name="description" rows="3" placeholder="Ex : fuite sous l’évier constatée le 12/10, joint et robinet remplacés.">${esc(i.description||'')}</textarea></label>`+
+  `<div id="rembBox" class="${(i.charge||'Propriétaire')==='Propriétaire'?'hidden':''}"><label class="chk"><input type="checkbox" name="rembourse" ${i.rembourse?'checked':''}> Le locataire a déjà remboursé sa part</label></div>`+
+  `<h4>🧱 Matériel acheté</h4><div id="mats" class="inc-cout">${mats.map(matRow).join('')}</div><button type="button" class="sm ghost" data-a="matAdd">+ Ajouter un article</button>`+
+  `<h4>👷 Main d’œuvre</h4><div class="grid2 inc-cout">${fld('Nom de l’artisan / technicien','artisan',i.artisan||'','text',false)}${fld('Téléphone de l’artisan','artisanTel',i.artisanTel||'','tel',false)}</div><div class="inc-cout">${num('Montant de la main d’œuvre (FCFA)','mo',i.mo||0,false)}</div>`+
+  `<div id="incTot" class="plan"></div>`+
+  `<h4>📎 Preuves</h4>${pjInputs(['avant','apres','facture'],'Photographiez le problème avant, le travail après, et chaque reçu d’achat de matériel ou de main d’œuvre.')}`+
+  (i.depenseId?'<p class="muted small">✔ Lié aux dépenses : le montant sera mis à jour automatiquement.</p>':`<label class="chk"><input type="checkbox" name="toDep" checked> Ajouter le coût aux dépenses une fois résolu</label>`);
+};
+function chargeLoc(i){const c=i.cout||0;return i.charge==='Locataire'?c:i.charge==='Partagé (50/50)'?Math.round(c/2):0;}
+function reparationsLoc(b){return db.incidents.filter(i=>i.logementId===b.logementId&&i.statut==='Résolu'&&!i.rembourse&&chargeLoc(i)>0&&i.date>=b.debut&&(!b.fin||i.date<=b.fin));}
+function incSave(i,d,fd){
+  if(!d.logementId)fail('Choisissez un logement');
+  if(!d.titre.trim())fail('Décrivez le problème');
+  const art=fd.getAll('art'),q=fd.getAll('qte'),pu=fd.getAll('pu'),four=fd.getAll('four');
+  const materiel=art.map((a,k)=>({art:a.trim(),qte:Number(q[k])||1,pu:Number(pu[k])||0,four:(four[k]||'').trim()})).filter(m=>m.art||m.pu);
+  if(materiel.some(m=>m.pu<0))fail('Prix invalide');
+  const mo=Number(d.mo)||0,cout=sum(materiel,matTot)+mo;
+  Object.assign(i,{logementId:d.logementId,titre:d.titre.trim(),description:d.description.trim(),date:d.date,priorite:d.priorite,statut:d.statut,
+    cause:d.cause,charge:d.charge,rembourse:d.charge!=='Propriétaire'&&!!d.rembourse,materiel,mo,artisan:d.artisan.trim(),artisanTel:d.artisanTel.trim(),cout,pieces:PJ.slice()});
+  if(i.statut==='Résolu'&&!i.resolu)i.resolu=today();
+  if(i.statut!=='Résolu')i.resolu='';
+  const dep=i.depenseId&&db.depenses.find(x=>x.id===i.depenseId);
+  const lib=`Réparation : ${i.titre} (${logNom(i.logementId)})`;
+  if(dep){Object.assign(dep,{montant:cout,libelle:lib,immeubleId:logement(i.logementId)?.immeubleId});if(!cout){db.depenses=db.depenses.filter(x=>x!==dep);i.depenseId='';}}
+  else if(d.toDep&&i.statut==='Résolu'&&cout>0){const nd={id:uid(),immeubleId:logement(i.logementId)?.immeubleId,date:i.resolu||today(),cat:'Entretien / réparations',libelle:lib,montant:cout,incidentId:i.id,pieces:[]};db.depenses.push(nd);i.depenseId=nd.id;}
+}
+A.addIncident=()=>{if(!LOGS().length)return toast('Ajoutez d’abord des logements.');PJ=[];modal('Signaler une réparation',fInc(),(d,fd)=>{const i={id:uid()};incSave(i,d,fd);db.incidents.push(i);});setTimeout(majIncTot,0);};
+A.editIncident=id=>{const i=db.incidents.find(x=>x.id===id);PJ=(i.pieces||[]).slice();modal('Modifier la réparation',fInc(i),(d,fd)=>incSave(i,d,fd));setTimeout(majIncTot,0);};
+A.voirInc=id=>{
+  const i=db.incidents.find(x=>x.id===id);if(!i)return;
+  const l=logement(i.logementId),b=bailLogement(i.logementId)||db.baux.filter(x=>x.logementId===i.logementId&&x.debut<=i.date).slice(-1)[0],t=b?locataire(b.locataireId):null;
+  VIEWPJ=i.pieces||[];
+  const part=chargeLoc(i);
+  const wmsg=t?`Bonjour ${t.nom}, suite à la réparation « ${i.titre} » du logement ${l?.nom||''} (${i.cause||''}), la somme de ${fcfa(part)} est à votre charge (matériel ${fcfa(incMat(i))} + main d’œuvre ${fcfa(i.mo||0)}${i.charge==='Partagé (50/50)'?', partagé à 50 %':''}). Les reçus d’achat sont disponibles sur demande. Merci de prévoir le règlement.${AG().nom?'\n\n'+AG().nom:''}`:'';
+  modal('Fiche de réparation',
+    `<div class="row"><h3 style="margin:0">${esc(i.titre)}</h3><span class="badge ${i.statut==='Résolu'?'ok':i.statut==='En cours'?'warn':'neg'}">${esc(i.statut)}</span></div>
+    <p class="muted">${esc(l?.nom||'')} (${esc(l?.type||'')}) · constaté le ${fmtDate(i.date)}${i.resolu?' · résolu le '+fmtDate(i.resolu):''}${t?' · locataire : '+esc(t.nom):''}</p>
+    <div class="plan"><div class="row"><span>Cause</span><b>${esc(i.cause||'—')}</b></div><div class="row"><span>À la charge de</span><b>${esc(i.charge||'Propriétaire')}</b></div>${part?`<div class="row"><span>Part du locataire</span><b class="${i.rembourse?'ok':'neg'}">${fcfa(part)} ${i.rembourse?'(remboursé)':'(à récupérer)'}</b></div>`:''}</div>
+    ${i.description?`<p>${esc(i.description).replace(/\n/g,'<br>')}</p>`:''}
+    ${(i.materiel||[]).length?`<table class="mini"><tr><th>Matériel</th><th class="n">Qté</th><th class="n">P.U.</th><th class="n">Total</th></tr>${i.materiel.map(m=>`<tr><td>${esc(m.art)}${m.four?`<div class="muted small">${esc(m.four)}</div>`:''}</td><td class="n">${m.qte}</td><td class="n">${fcfa(m.pu)}</td><td class="n">${fcfa(matTot(m))}</td></tr>`).join('')}</table>`:''}
+    <div class="row"><span>Main d’œuvre${i.artisan?' — '+esc(i.artisan)+(i.artisanTel?' ('+esc(i.artisanTel)+')':''):''}</span><b>${fcfa(i.mo||0)}</b></div>
+    <div class="row recu-t" style="border-top:1px solid #e5e7eb;margin-top:6px;padding-top:6px"><span>Coût total</span><span>${fcfa(i.cout||0)}</span></div>
+    <h4>📎 Preuves (${VIEWPJ.length})</h4>
+    ${VIEWPJ.length?`<div class="pj">${VIEWPJ.map((p,k)=>`<div class="pj-i"><img src="${p.data}" data-a="voirImg" data-id="${k}" alt=""><span>${PJT[p.type]||''}</span></div>`).join('')}</div>`:'<p class="muted small">Aucune photo ni reçu. Ajoutez-les avec « Modifier ».</p>'}
+    <div class="btns col">
+      <button type="button" class="primary" data-a="ficheInc" data-id="${i.id}">🖨️ Télécharger la fiche de preuve (imprimable)</button>
+      ${part&&!i.rembourse&&t?.tel?`<a class="btn wa" href="${esc(waLink(t.tel,wmsg))}" target="_blank" rel="noopener">Demander le remboursement à ${esc(t.nom)}</a>`:''}
+      <button type="button" class="ghost" data-a="editIncident" data-id="${i.id}">Modifier</button>
+      <button type="button" class="ghost" data-a="closeModal">Fermer</button>
+    </div>`,null);
+};
+A.ficheInc=id=>{
+  const i=db.incidents.find(x=>x.id===id),l=logement(i.logementId),im=imm(l?.immeubleId)||{},b=db.baux.filter(x=>x.logementId===i.logementId&&x.debut<=i.date&&(!x.fin||x.fin>=i.date)).slice(-1)[0],t=b?locataire(b.locataireId):null,part=chargeLoc(i);
+  const ph=ty=>(i.pieces||[]).filter(p=>p.type===ty);
+  const gal=(ty,tit)=>ph(ty).length?`<h2>${tit} (${ph(ty).length})</h2><div class="gal">${ph(ty).map(p=>`<figure><img src="${p.data}"><figcaption>${fmtDate(p.date)}</figcaption></figure>`).join('')}</div>`:'';
+  const html=docHtml(`Fiche de réparation — ${i.titre}`,`${brandHtml()}<h1>FICHE DE RÉPARATION</h1>
+<p><b>${esc(i.titre)}</b><br>${esc(im.nom||'')} — logement ${esc(l?.nom||'')} (${esc(l?.type||'')})${t?'<br>Locataire : '+esc(t.nom):''}<br>Constat le ${fmtDate(i.date)}${i.resolu?' · Réparé le '+fmtDate(i.resolu):''} · Statut : ${esc(i.statut)}</p>
+<h2>Motif</h2><table><tr><td>Cause</td><td><b>${esc(i.cause||'—')}</b></td></tr><tr><td>À la charge de</td><td><b>${esc(i.charge||'Propriétaire')}</b>${part?` — part du locataire : <b>${fcfa(part)}</b>${i.rembourse?' (remboursée)':' (à récupérer)'}`:''}</td></tr>${i.description?`<tr><td>Constat</td><td>${esc(i.description).replace(/\n/g,'<br>')}</td></tr>`:''}</table>
+<h2>Détail des coûts</h2><table><tr><th>Désignation</th><th>Fournisseur</th><th class="n">Qté</th><th class="n">Prix unitaire</th><th class="n">Total</th></tr>
+${(i.materiel||[]).map(m=>`<tr><td>${esc(m.art)}</td><td>${esc(m.four||'')}</td><td class="n">${m.qte}</td><td class="n">${fcfa(m.pu)}</td><td class="n">${fcfa(matTot(m))}</td></tr>`).join('')}
+<tr><td>Main d’œuvre</td><td>${esc(i.artisan||'')}${i.artisanTel?' — '+esc(i.artisanTel):''}</td><td class="n">1</td><td class="n">${fcfa(i.mo||0)}</td><td class="n">${fcfa(i.mo||0)}</td></tr>
+<tr class="tot"><td colspan="4">Coût total de la réparation</td><td class="n">${fcfa(i.cout||0)}</td></tr></table>
+${gal('avant','Photos avant réparation')}${gal('apres','Photos après réparation')}${gal('facture','Reçus et factures d’achat')}
+<table class="sig"><tr><td>Le gestionnaire / bailleur</td><td>L’artisan</td><td>Le locataire</td></tr><tr><td style="height:70px"></td><td></td><td></td></tr></table>
+<p class="small">Document édité le ${fmtDate(today())} — ${(i.pieces||[]).length} pièce(s) justificative(s) jointe(s).</p>`);
+  saveFile(`reparation-${(l?.nom||'logement').replace(/\s+/g,'-')}-${i.date}.html`,html,'text/html');
+};
+A.voirDep=id=>{const d=db.depenses.find(x=>x.id===id);if(!d)return;if(d.incidentId&&db.incidents.some(x=>x.id===d.incidentId))return A.voirInc(d.incidentId);VIEWPJ=d.pieces||[];
+  modal('Justificatifs de la dépense',`<p><b>${esc(d.libelle)}</b><br><span class="muted">${fmtDate(d.date)} · ${esc(d.cat)}${d.fournisseur?' · '+esc(d.fournisseur):''} · ${fcfa(d.montant)}</span></p>${VIEWPJ.length?`<div class="pj">${VIEWPJ.map((p,k)=>`<div class="pj-i"><img src="${p.data}" data-a="voirImg" data-id="${k}" alt=""><span>${PJT[p.type]||''}</span></div>`).join('')}</div>`:'<p class="muted">Aucun justificatif.</p>'}<div class="btns"><button type="button" class="ghost" data-a="editDepense" data-id="${d.id}">Modifier / ajouter un reçu</button><button type="button" class="ghost" data-a="closeModal">Fermer</button></div>`,null);};
+const nbPJ=x=>(x.pieces||[]).length||(x.incidentId?(db.incidents.find(i=>i.id===x.incidentId)?.pieces||[]).length:0);
 
 /* ===================== v4 : agence, contrat, relances, relevé ===================== */
 const AG=()=>db.settings.agence||{};
@@ -1257,6 +1361,7 @@ document.addEventListener('pointerover',chartTip);
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
 document.addEventListener('input',e=>{
   if(e.target.name==='montant'&&ENC&&document.getElementById('plan'))majPlan(e.target.value);
+  if(e.target.closest&&e.target.closest('.inc-cout'))majIncTot();
   if(e.target.id==='search'){state.search=e.target.value;const l=document.getElementById('liste');if(l)l.innerHTML=listeLocataires();}
 });
 document.addEventListener('change',e=>{
@@ -1265,6 +1370,8 @@ document.addEventListener('change',e=>{
   if(e.target.id==='autoRecu'){db.settings.autoRecu=e.target.checked;save();toast(e.target.checked?'Reçu automatique activé':'Reçu automatique désactivé');}
   if(e.target.id==='importFile'&&e.target.files[0])importFile(e.target.files[0]);
   if(e.target.id==='logoFile'&&e.target.files[0])setLogo(e.target.files[0]);
+  if(e.target.classList.contains('pjFile')&&e.target.files.length){addPJ([...e.target.files],e.target.dataset.type);e.target.value='';}
+  if(e.target.closest&&e.target.closest('#mForm')&&document.getElementById('incTot'))majIncTot();
 });
 document.addEventListener('submit',e=>{
   if(e.target.id!=='lockForm')return;
