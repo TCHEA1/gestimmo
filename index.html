@@ -150,7 +150,8 @@ document.body.insertAdjacentHTML('afterbegin',`<header class="top"><b class="bra
 const KEY='gestimmo_v1';
 const CATS=['Électricité','Eau','Gardiennage','Entretien / réparations','Travaux','Taxes / impôts','Assurance','Frais de gestion','Autre'];
 const MODES=['Espèces','Orange Money','MTN MoMo','Wave','Moov Money','Virement bancaire','Chèque'];
-const TYPES=['Studio','F1','F2','F3','F4','F5','Villa','Local commercial','Bureau','Autre'];
+const TYPES=['Studio','Chambre salon','2 chambres salon','3 chambres salon','4 chambres salon','Villa','Magasin','Bureau','Autre'];
+const OLD_TYPES={F1:'Studio',F2:'Chambre salon',F3:'2 chambres salon',F4:'3 chambres salon',F5:'4 chambres salon','Local commercial':'Magasin'};
 const PRIOS=['Basse','Normale','Urgente'];
 const STATS=['Ouvert','En cours','Résolu'];
 const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
@@ -189,6 +190,7 @@ function migrate(d){
     }
   }
   delete d.immeuble;
+  (d.logements||[]).forEach(l=>{if(OLD_TYPES[l.type])l.type=OLD_TYPES[l.type];});
   const e=emptyDb();
   return {...e,...d,settings:{...e.settings,...(d.settings||{})}};
 }
@@ -367,7 +369,7 @@ function closeModal(){document.getElementById('modal').classList.add('hidden');}
 
 /* ---------- Formulaires ---------- */
 const fImm=(i={})=>fld('Nom de l’immeuble','nom',i.nom||'')+fld('Adresse / quartier','adresse',i.adresse||'','text',false)+fld('Propriétaire / bailleur','proprietaire',i.proprietaire||'','text',false)+fld('Contact (téléphone)','contact',i.contact||'','tel',false);
-const fLog=(l={})=>sel('Immeuble','immeubleId',immOpts(),l.immeubleId||defImm())+fld('Nom / n° (ex : A1, Apt 3)','nom',l.nom||'')+sel('Type','type',TYPES,l.type||'F2')+fld('Étage','etage',l.etage??'RDC','text',false)+num('Loyer mensuel (FCFA)','loyer',l.loyer??'')+num('Charges mensuelles (FCFA)','charges',l.charges??0,false);
+const fLog=(l={})=>sel('Immeuble','immeubleId',immOpts(),l.immeubleId||defImm())+fld('Nom / n° (ex : A1, Apt 3)','nom',l.nom||'')+sel('Type de logement','type',TYPES.includes(l.type)||!l.type?TYPES:[...TYPES,l.type],l.type||'Chambre salon')+fld('Étage','etage',l.etage??'RDC','text',false)+num('Loyer mensuel (FCFA)','loyer',l.loyer??'')+num('Charges mensuelles (FCFA)','charges',l.charges??0,false);
 const fLoc=(t={})=>fld('Nom complet','nom',t.nom||'')+fld('Téléphone (WhatsApp)','tel',t.tel||'','tel',false)+fld('Email','email',t.email||'','email',false)+fld('Profession / employeur','profession',t.profession||'','text',false)+fld('Pièce d’identité (type et n°)','piece',t.piece||'','text',false)+fld('Personne à contacter en cas d’urgence','urgence',t.urgence||'','text',false)+`<label>Notes<textarea name="notes" rows="3">${esc(t.notes||'')}</textarea></label>`;
 const fDep=(d={})=>sel('Immeuble','immeubleId',immOpts(),d.immeubleId||defImm())+fld('Date','date',d.date||today(),'date')+sel('Catégorie','cat',CATS,d.cat||CATS[0])+fld('Libellé','libelle',d.libelle||'')+num('Montant (FCFA)','montant',d.montant??'');
 const fInc=(i={})=>sel('Logement','logementId',LOGS().map(l=>[l.id,(db.immeubles.length>1?imm(l.immeubleId)?.nom+' — ':'')+l.nom]),i.logementId||'')+fld('Problème signalé','titre',i.titre||'')+`<label>Description<textarea name="description" rows="3">${esc(i.description||'')}</textarea></label>`+fld('Date du signalement','date',i.date||today(),'date')+sel('Priorité','priorite',PRIOS,i.priorite||'Normale')+sel('Statut','statut',STATS,i.statut||'Ouvert')+num('Coût de la réparation (FCFA)','cout',i.cout||0,false)+(i.depenseId?'<p class="muted">✔ Coût déjà ajouté aux dépenses.</p>':`<label class="chk"><input type="checkbox" name="toDep"> Ajouter le coût aux dépenses une fois résolu</label>`);
@@ -1040,14 +1042,14 @@ function demoDb(){
     {id:'i1',nom:'Résidence Les Palmiers',adresse:'Cocody Riviera 3, Abidjan',proprietaire:'M. Tchea',contact:'0700000000'},
     {id:'i2',nom:'Immeuble Le Baobab',adresse:'Yopougon Selmer, Abidjan',proprietaire:'M. Tchea',contact:'0700000000'}];
   d.logements=[
-    {id:'l1',immeubleId:'i1',nom:'A1',type:'F2',etage:'RDC',loyer:150000,charges:10000},
-    {id:'l2',immeubleId:'i1',nom:'A2',type:'F3',etage:'RDC',loyer:200000,charges:10000},
+    {id:'l1',immeubleId:'i1',nom:'A1',type:'Chambre salon',etage:'RDC',loyer:150000,charges:10000},
+    {id:'l2',immeubleId:'i1',nom:'A2',type:'2 chambres salon',etage:'RDC',loyer:200000,charges:10000},
     {id:'l3',immeubleId:'i1',nom:'B1',type:'Studio',etage:'1',loyer:75000,charges:0},
-    {id:'l4',immeubleId:'i1',nom:'B2',type:'F2',etage:'1',loyer:150000,charges:10000},
-    {id:'l5',immeubleId:'i1',nom:'C1',type:'F3',etage:'2',loyer:200000,charges:15000},
+    {id:'l4',immeubleId:'i1',nom:'B2',type:'Chambre salon',etage:'1',loyer:150000,charges:10000},
+    {id:'l5',immeubleId:'i1',nom:'C1',type:'2 chambres salon',etage:'2',loyer:200000,charges:15000},
     {id:'r1',immeubleId:'i2',nom:'Studio 1',type:'Studio',etage:'RDC',loyer:60000,charges:0},
-    {id:'r2',immeubleId:'i2',nom:'Appart 2',type:'F2',etage:'1',loyer:100000,charges:5000},
-    {id:'r3',immeubleId:'i2',nom:'Boutique',type:'Local commercial',etage:'RDC',loyer:180000,charges:0}];
+    {id:'r2',immeubleId:'i2',nom:'Appart 2',type:'Chambre salon',etage:'1',loyer:100000,charges:5000},
+    {id:'r3',immeubleId:'i2',nom:'Boutique',type:'Magasin',etage:'RDC',loyer:180000,charges:0}];
   const T=(id,nom,tel,profession)=>({id,nom,tel,email:'',profession,piece:'',urgence:'',notes:''});
   d.locataires=[T('t1','Kouamé Aya','0701020304','Infirmière'),T('t2','Koné Ibrahim','0505060708','Comptable'),T('t3','Traoré Mariam','0707080910','Enseignante'),
     T('t4','Yao Serge','0102030405','Commercial'),T('t5','Bamba Fatou','0708091011','Étudiante'),T('t6','N’Guessan Paul','0506070809','Technicien'),T('t7','Diallo Aminata','0102131415','Commerçante')];
@@ -1119,7 +1121,7 @@ function setLogo(f){
 A.delLogo=()=>{const a={...AG()};delete a.logo;db.settings.agence=a;loadLogo();save();render();};
 
 /* ---------- Contrat de bail + état des lieux ---------- */
-const PIECES={Studio:['Pièce principale','Coin cuisine','Salle d’eau / WC'],F1:['Séjour / chambre','Cuisine','Salle d’eau / WC'],F2:['Séjour','Chambre','Cuisine','Salle d’eau / WC'],F3:['Séjour','Chambre 1','Chambre 2','Cuisine','Salle d’eau / WC'],F4:['Séjour','Chambre 1','Chambre 2','Chambre 3','Cuisine','Salle(s) d’eau / WC'],F5:['Séjour','Chambre 1','Chambre 2','Chambre 3','Chambre 4','Cuisine','Salle(s) d’eau / WC'],Villa:['Séjour','Chambres','Cuisine','Salles d’eau / WC','Cour / jardin','Garage']};
+const PIECES={Studio:['Pièce principale','Coin cuisine','Douche / WC'],'Chambre salon':['Salon','Chambre','Cuisine','Douche / WC'],'2 chambres salon':['Salon','Chambre 1','Chambre 2','Cuisine','Douche(s) / WC'],'3 chambres salon':['Salon','Chambre 1','Chambre 2','Chambre 3','Cuisine','Douches / WC'],'4 chambres salon':['Salon','Chambre 1','Chambre 2','Chambre 3','Chambre 4','Cuisine','Douches / WC'],Villa:['Salon','Chambres','Cuisine','Douches / WC','Cour / jardin','Garage'],Magasin:['Espace de vente','Réserve','Rideau / porte','Toilettes']};
 const etatLieux=(type,titre)=>`<h2>${titre}</h2><p>Date : ____ / ____ / ________ &nbsp;&nbsp; Index compteur électricité : ____________ &nbsp; Eau : ____________ &nbsp; Nombre de clés remises : ______</p>
 <table><tr><th>Pièce / élément</th><th>Murs & plafond</th><th>Sol</th><th>Portes & fenêtres</th><th>Électricité / plomberie</th><th>Observations</th></tr>
 ${(PIECES[type]||['Local principal','Annexe','Sanitaires']).map(p=>`<tr><td>${p}</td><td>B · M · Mv</td><td>B · M · Mv</td><td>B · M · Mv</td><td>B · M · Mv</td><td style="width:28%"></td></tr>`).join('')}</table>
@@ -1127,7 +1129,7 @@ ${(PIECES[type]||['Local principal','Annexe','Sanitaires']).map(p=>`<tr><td>${p}
 <table class="sig"><tr><td>Le bailleur / gestionnaire</td><td>Le locataire</td></tr><tr><td style="height:70px"></td><td></td></tr></table>`;
 A.contrat=bid=>{
   const b=db.baux.find(x=>x.id===bid),l=logement(b.logementId),t=locataire(b.locataireId),im=imm(l?.immeubleId)||{},a=AG();
-  const pro=['Local commercial','Bureau'].includes(l?.type);
+  const pro=['Magasin','Bureau','Local commercial'].includes(l?.type);
   let cl=b.loyer,cc=b.charges||0;(b.revisions||[]).forEach(r=>{if(r.depuis<=curMois()){cl=r.loyer;cc=r.charges;}});
   const loyer=montantDu(b,curMois()),dur=b.finPrevue?`du ${fmtDate(b.debut)} au ${fmtDate(b.finPrevue)}`:`d’un (1) an à compter du ${fmtDate(b.debut)}`;
   const html=docHtml(`Contrat de bail — ${t?.nom||''}`,`${brandHtml()}<h1 style="text-align:center">CONTRAT DE BAIL ${pro?'À USAGE PROFESSIONNEL':'À USAGE D’HABITATION'}</h1>
