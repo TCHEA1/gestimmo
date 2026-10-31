@@ -120,6 +120,7 @@ table.mini{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}table
 @media(max-width:600px){.who small{display:none}.who{max-width:110px;overflow:hidden;text-overflow:ellipsis}}
 .who-list{display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto}.who-list button{display:flex;justify-content:space-between;align-items:center;text-align:left;background:#f3f4f6}.who-list button.on{background:#0f4c3a;color:#fff}.who-list small{opacity:.7;font-size:12px}
 .code-secours{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:22px;letter-spacing:2px;text-align:center;background:#fef3c7;border:2px dashed #f59e0b;border-radius:10px;padding:14px;margin:12px 0}
+.demo-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#fef3c7;border:1px solid #fcd34d;color:#78350f;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:14px}
 .hidden-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
 @media(max-width:959px){
   .rt thead{display:none}
@@ -206,6 +207,7 @@ function migrate(d){
     }
   }
   delete d.immeuble;
+  if(!d._demo&&(d.immeubles||[]).some(i=>i.id==='i1'&&i.nom==='Résidence Les Palmiers')&&(d.locataires||[]).some(t=>t.id==='t1'&&t.nom==='Kouamé Aya'))d._demo=true;
   (d.logements||[]).forEach(l=>{if(OLD_TYPES[l.type])l.type=OLD_TYPES[l.type];});
   const e=emptyDb();
   return {...e,...d,settings:{...e.settings,...(d.settings||{})}};
@@ -393,7 +395,7 @@ const fDep=(d={})=>sel('Immeuble','immeubleId',immOpts(),d.immeubleId||defImm())
 
 /* ---------- Pages ---------- */
 function pageDash(){
-  if(!db.logements.length)return `<div class="card hero"><div style="display:flex;align-items:center;gap:14px"><img src="${MARK}" width="64" height="64" alt="" style="border-radius:15px;box-shadow:0 0 0 2px rgba(255,255,255,.35)"><h2 style="margin:0">Bienvenue sur Gest<span class="gold">Immo</span> 👋</h2></div><p>Ajoutez votre immeuble et ses logements, puis enregistrez locataires, entrées, loyers, dépenses et incidents. Tout se calcule automatiquement.</p><div class="btns"><button data-a="addImmeuble">Ajouter un immeuble</button><button class="ghost" data-a="demo">Voir une démo</button></div></div>`;
+  if(!db.logements.length)return `<div class="card hero"><div style="display:flex;align-items:center;gap:14px"><img src="${MARK}" width="64" height="64" alt="" style="border-radius:15px;box-shadow:0 0 0 2px rgba(255,255,255,.35)"><h2 style="margin:0">Bienvenue sur Gest<span class="gold">Immo</span> 👋</h2></div><p>Ajoutez votre immeuble et ses logements, puis enregistrez locataires, entrées, loyers, dépenses et incidents. Tout se calcule automatiquement.</p><div class="btns"><button data-a="addImmeuble">Ajouter un immeuble</button><button class="ghost" data-a="demo">🎭 Voir une démo d’abord</button></div></div>`;
   const ym=state.mois,L=LOGS(),B=BAUX();
   const actifs=B.filter(b=>bailActif(b,ym)).map(b=>({b,s:statutBail(b,ym)}));
   const att=sum(actifs,x=>x.s.du),enc=encaisseMois(ym),dep=depMois(ym),solde=enc-dep;
@@ -646,8 +648,7 @@ function pageParametres(){
       <div class="btns col">
         <button type="button" class="primary" data-a="exportJson">📤 Exporter la sauvegarde (.json)</button>
         <label class="btn ghost" style="position:relative;margin:0">📥 Importer une sauvegarde<input type="file" id="importFile" accept="application/json,.json" class="hidden-input"></label>
-        <button type="button" class="ghost" data-a="demo">Charger les données de démo</button>
-        <button type="button" class="danger" data-a="reset">Tout effacer</button>
+        ${db._demo?'<button type="button" class="primary" data-a="quitterDemo">🎭 Quitter la démo → mon compte réel</button>':'<button type="button" class="ghost" data-a="demo">🎭 Voir la démo (vos données sont gardées)</button><button type="button" class="danger" data-a="reset">Tout effacer</button>'}
       </div>
     </div>
   </div>
@@ -672,7 +673,7 @@ function render(){
   if(nb)nb.innerHTML=`📣 Relances${nr?` <span class="nb">${nr}</span>`:''}`;
   const br=document.querySelector('.brand');if(br)br.innerHTML=AG().logo?`<img src="${AG().logo}" class="brand-logo" alt=""><span>${esc(AG().nom||'GestImmo')}</span>`:`<img src="${MARK}" class="brand-mark" alt=""> <span>${AG().nom?esc(AG().nom):'Gest<span class="gold">Immo</span>'}</span>`;
   document.getElementById('ctip').classList.add('hidden');
-  document.getElementById('app').innerHTML=connecte()&&!compromis()?(PAGES[state.page]||pageDash)():'';
+  document.getElementById('app').innerHTML=connecte()&&!compromis()?(db._demo?`<div class="demo-bar"><span>🎭 <b>Mode démo</b> — données fictives pour découvrir l’application.</span><button class="primary sm" data-a="quitterDemo">Quitter la démo → mon compte réel</button></div>`:'')+(PAGES[state.page]||pageDash)():'';
   stripAdmin(document.getElementById('app'));
   checkLock();
 }
@@ -1057,11 +1058,23 @@ A.setPin=()=>modal(db.settings.pin?'Changer le code PIN':'Activer un code PIN',
 A.delPin=async()=>{if(!await ask('Désactiver le code PIN ?'))return;db.settings.pin='';save();render();};
 
 A.exportJson=()=>{if(comptes()){log('donnees','Export de la sauvegarde par '+nomU(state.uid));save();}saveFile(`gestimmo-${today()}.json`,JSON.stringify(db,null,2),'application/json');};
+const finSession=()=>{ADMKEY=null;state.uid=null;LOGIN={uid:null,mode:'login'};try{sessionStorage.removeItem(KEY+'_k');}catch(e){}};
 A.demo=async()=>{
-  if(db.logements.length&&!await ask('Remplacer vos données actuelles par la démo ?'))return;
-  db=demoDb();loadLogo();ADMKEY=null;state.uid=null;try{sessionStorage.removeItem(KEY+'_k');}catch(e){}state.imm='all';state.page='dash';state.mois=curMois();save();closeModal();render();
+  if(db._demo)return toast('Vous êtes déjà en mode démo.');
+  if(db.logements.length&&!await ask('Ouvrir la démo ? Vos vraies données sont mises de côté (rien n’est effacé) et vous y reviendrez avec « Quitter la démo ».'))return;
+  const reel=JSON.parse(JSON.stringify(db));delete reel._ts;
+  db=demoDb();db._demo=true;db._reel=reel;loadLogo();ADMKEY=null;state.uid=null;try{sessionStorage.removeItem(KEY+'_k');}catch(e){}state.imm='all';state.page='dash';state.mois=curMois();save();closeModal();render();
+};
+A.quitterDemo=async()=>{
+  if(!db._demo)return;
+  const r=db._reel,vide=!r||!(r.logements||[]).length&&!(r.immeubles||[]).length;
+  if(!await ask(vide?'Quitter la démo et commencer avec votre compte réel (vide) ? Les données fictives seront effacées.':'Quitter la démo et revenir à votre compte réel ? Les données fictives seront effacées.'))return;
+  db=migrate(r&&Object.keys(r).length?r:emptyDb());delete db._demo;delete db._reel;loadLogo();finSession();
+  state.imm='all';state.page='dash';state.mois=curMois();state.id=null;save();closeModal();render();
+  toast(vide?'Bienvenue dans votre compte réel 👋 Commencez par ajouter votre immeuble.':'Vous êtes de retour sur votre compte réel ✅');
 };
 A.reset=async()=>{
+  if(db._demo)return A.quitterDemo();
   if(!await ask('Effacer TOUTES les données ? Pensez à exporter une sauvegarde avant.'))return;
   db=emptyDb();loadLogo();ADMKEY=null;state.uid=null;try{sessionStorage.removeItem(KEY+'_k');}catch(e){}state.imm='all';state.page='dash';save();closeModal();render();
 };
