@@ -130,6 +130,7 @@ table.mini{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}table
 .auth-links{margin-top:8px}.auth-new{border-top:1px solid #e5e7eb;margin-top:14px;padding-top:12px}
 #lockForm{max-height:94vh;overflow:auto}
 .masse-list{max-height:34vh;overflow:auto;border:1px solid #e5e7eb;border-radius:10px;padding:4px 10px;margin:6px 0}.masse-list .chk{margin:6px 0}
+.sup-bar{background:#ede9fe;border-color:#c4b5fd;color:#4c1d95}
 .hidden-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
 @media(max-width:959px){
   .rt thead{display:none}
@@ -690,7 +691,7 @@ function render(){
   if(nb)nb.innerHTML=`📣 Relances${nr?` <span class="nb">${nr}</span>`:''}`;
   const br=document.querySelector('.brand');if(br)br.innerHTML=AG().logo?`<img src="${AG().logo}" class="brand-logo" alt=""><span>${esc(AG().nom||'GestImmo')}</span>`:`<img src="${MARK}" class="brand-mark" alt=""> <span>${AG().nom?esc(AG().nom):'Gest<span class="gold">Immo</span>'}</span>`;
   document.getElementById('ctip').classList.add('hidden');
-  document.getElementById('app').innerHTML=connecte()&&!compromis()?(db._demo?`<div class="demo-bar"><span>🎭 <b>Mode démo</b> — données fictives pour découvrir l’application.</span><button class="primary sm" data-a="quitterDemo">Quitter la démo → mon compte réel</button></div>`:'')+(PAGES[state.page]||pageDash)():'';
+  document.getElementById('app').innerHTML=connecte()&&!compromis()?(CLOUD&&SUP?`<div class="demo-bar sup-bar"><span>👁️ <b>Mode supervision</b> — agence <b>${esc(SUP.nom)}</b> : vous voyez et modifiez ses données. Toutes vos actions sont enregistrées dans son journal.</span><button class="primary sm" data-a="finSupervision">Quitter la supervision</button></div>`:'')+(db._demo?`<div class="demo-bar"><span>🎭 <b>Mode démo</b> — données fictives pour découvrir l’application.</span><button class="primary sm" data-a="quitterDemo">Quitter la démo → mon compte réel</button></div>`:'')+(PAGES[state.page]||pageDash)():'';
   stripAdmin(document.getElementById('app'));
   checkLock();
 }
@@ -1599,7 +1600,7 @@ function cardComptes(){
 }
 
 /* --- Permissions --- */
-const ADMIN_ONLY=new Set(['bauxMasse','nouveauCode','toggleMembre','resetMdp','editUser','delRecu','annulerRecu','delLocataire','delLogement','delImmeuble','addImmeuble','editImmeuble','addLogement','editLogement','editBail','sortie','editDepense','delDepense','delIncident','validerDep','refuserDep','demo','reset','setPin','delPin','editAgence','delLogo','dlReleve','addGest','pinGest','toggleGest','pwAdmin','modesCaisse','confirmerRemise','contesterRemise','remiseAdmin','creerAdmin']);
+const ADMIN_ONLY=new Set(['supprimerMembre','superviser','platEquipe','supprimerOrg','bauxMasse','nouveauCode','toggleMembre','resetMdp','editUser','delRecu','annulerRecu','delLocataire','delLogement','delImmeuble','addImmeuble','editImmeuble','addLogement','editLogement','editBail','sortie','editDepense','delDepense','delIncident','validerDep','refuserDep','demo','reset','setPin','delPin','editAgence','delLogo','dlReleve','addGest','pinGest','toggleGest','pwAdmin','modesCaisse','confirmerRemise','contesterRemise','remiseAdmin','creerAdmin']);
 const ADMIN_PAGES=new Set(['journal','parametres','immeubles']);
 function stripAdmin(root){if(isAdmin())return;root.querySelectorAll('[data-a]').forEach(el=>{if(ADMIN_ONLY.has(el.dataset.a))el.remove();});root.querySelectorAll('#importFile,#logoFile,#autoRecu').forEach(el=>{(el.closest('label')||el).remove();});}
 
@@ -1649,6 +1650,10 @@ function pageJournal(){
   ${tbl([['Date & heure'],['Qui'],['Action'],['Détail'],['Montant','n']],L.slice(0,300).map(e=>[`${fmtDate(e.t.slice(0,10))} ${e.t.slice(11,16)}`,esc(nomU(e.u)||'—'),JLBL[e.a]||esc(e.a),esc(e.d),e.m?fcfa(e.m):'']),'Aucune action enregistrée.')}`;
 }
 /* ===================== Mode en ligne : comptes, synchronisation, plateforme ===================== */
+let SUP=null,ORG_MOI=null;
+const rpcGet=()=>SUP?SB.rpc('platform_get_data',{p_org:SUP.id}):SB.rpc('get_data');
+const rpcSave=(pl,v)=>SUP?SB.rpc('platform_save_data',{p_org:SUP.id,p_data:pl,p_version:v}):SB.rpc('save_data',{p_data:pl,p_version:v});
+const rpcVersion=()=>SUP?SB.rpc('platform_get_version',{p_org:SUP.id}):SB.rpc('get_version');
 let SB=null,PROFILE=null,ORG=null,ORG_OK=false,PLAT={},MEMBERS=[],VERSION=0,BASE=null,LOADED=false,PUSHING=false,CHG=0,AUDIT=[],AUTH={mode:'loading'},PLAT_ORGS=null;
 const PCACHE={},PFETCH={};
 const DOMAIN='gestimmo.app';
@@ -1692,7 +1697,7 @@ function merge3(base,loc,rem){
 }
 
 /* --- Synchronisation --- */
-const cacheKey=()=>KEY+'_org_'+(ORG?.id||'');
+const cacheKey=()=>KEY+'_org_'+(SUP?'sup_'+SUP.id:(ORG?.id||''));
 function cacheLocal(){try{localStorage.setItem(cacheKey(),JSON.stringify({data:db,base:BASE,version:VERSION}));}catch(e){}}
 let pushTimer=null;
 function schedulePush(){if(!CLOUD||!PROFILE||!ORG_OK||!LOADED)return;CHG++;cacheLocal();setSync('⏳ Enregistrement…','wait');clearTimeout(pushTimer);pushTimer=setTimeout(pushNow,1200);}
@@ -1704,9 +1709,9 @@ async function pushNow(){
     for(let essai=0;essai<4;essai++){
       await uploadPieces();
       const pl=payload();
-      const {data,error}=await SB.rpc('save_data',{p_data:pl,p_version:VERSION});
+      const {data,error}=await rpcSave(pl,VERSION);
       if(!error){VERSION=data;BASE=pl;cacheLocal();break;}
-      if(/conflit/i.test(error.message)){const r=await SB.rpc('get_data');if(r.error)throw r.error;const rem=r.data.data||{};db=migrate(clone(merge3(BASE||{},db,rem)));BASE=clone(rem);VERSION=r.data.version;PIDX=null;continue;}
+      if(/conflit/i.test(error.message)){const r=await rpcGet();if(r.error)throw r.error;const rem=r.data.data||{};db=migrate(clone(merge3(BASE||{},db,rem)));BASE=clone(rem);VERSION=r.data.version;PIDX=null;continue;}
       if(/Interdit|Accès refusé|Abonnement/i.test(error.message)){toast('⛔ '+cloudErr(error));await reloadRemote();break;}
       throw error;
     }
@@ -1716,14 +1721,14 @@ async function pushNow(){
   PUSHING=false;
   if(CHG!==c0&&!pushTimer)pushTimer=setTimeout(pushNow,300);
 }
-async function reloadRemote(){const r=await SB.rpc('get_data');if(r.error)throw r.error;const rem=r.data.data||{};db=migrate(clone(rem));BASE=clone(rem);VERSION=r.data.version;PIDX=null;LOADED=true;cacheLocal();if(document.getElementById('modal').classList.contains('hidden'))render();}
+async function reloadRemote(){const r=await rpcGet();if(r.error)throw r.error;const rem=r.data.data||{};db=migrate(clone(rem));BASE=clone(rem);VERSION=r.data.version;PIDX=null;LOADED=true;cacheLocal();if(document.getElementById('modal').classList.contains('hidden'))render();}
 async function poll(){
   if(!CLOUD||!PROFILE||!ORG_OK||!LOADED||PUSHING||pushTimer)return;
   try{
     const me=await SB.rpc('me');
-    if(!me.error&&me.data){ORG={...ORG,...me.data.org};PROFILE={...PROFILE,...me.data.profile,login:me.data.profile.username};if(!me.data.ok){ORG_OK=false;AUTH={mode:'attente'};render();renderLock();return;}}
+    if(!me.error&&me.data){if(!SUP)ORG={...ORG,...me.data.org};else ORG_MOI={...ORG_MOI,...me.data.org};PROFILE={...PROFILE,...me.data.profile,login:me.data.profile.username};if(!me.data.ok){ORG_OK=false;AUTH={mode:'attente'};render();renderLock();return;}}
     if(isAdmin())refreshTeam();
-    const {data,error}=await SB.rpc('get_version');if(error)throw error;
+    const {data,error}=await rpcVersion();if(error)throw error;
     if(data>VERSION&&!PUSHING){await reloadRemote();setSync('☁️ Synchronisé','ok');}
     else setSync('☁️ Synchronisé','ok');
   }catch(e){setSync('📴 Hors ligne','off');}
@@ -1733,13 +1738,13 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 window.addEventListener('online',()=>{if(CLOUD&&PROFILE)pushNow();});
 
 /* --- Session --- */
-async function refreshTeam(){try{const {data}=await SB.rpc('team');MEMBERS=(data||[]).map(u=>({id:u.id,nom:u.nom,login:u.username,tel:u.tel,role:u.role,actif:u.actif}));}catch(e){}}
-async function refreshAudit(){if(!isAdmin())return;try{const {data}=await SB.rpc('audit_list',{p_limit:400});AUDIT=data||[];}catch(e){}}
+async function refreshTeam(){try{const {data}=await (SUP?SB.rpc('platform_team',{p_org:SUP.id}):SB.rpc('team'));MEMBERS=(data||[]).map(u=>({id:u.id,nom:u.nom,login:u.username,tel:u.tel,role:u.role,supprime:!!u.supprime,actif:u.actif}));}catch(e){}}
+async function refreshAudit(){if(!isAdmin())return;try{const {data}=await (SUP?SB.rpc('platform_audit',{p_org:SUP.id,p_limit:400}):SB.rpc('audit_list',{p_limit:400}));AUDIT=data||[];}catch(e){}}
 async function cloudBoot(){
   AUTH.mode='loading';renderLock();
   const {data,error}=await SB.rpc('me');
   if(error){AUTH={mode:'login',msg:cloudErr(error)};PROFILE=null;renderLock();return;}
-  if(!data){AUTH={mode:'login',msg:'Compte incomplet. Contactez le propriétaire de la plateforme.'};await SB.auth.signOut();renderLock();return;}
+  if(!data){AUTH={mode:'login',msg:'Ce compte a été supprimé ou n’existe plus. Contactez votre Super admin ou l’équipe GestImmo.'};await SB.auth.signOut();renderLock();return;}
   PROFILE={...data.profile,login:data.profile.username};ORG=data.org;ORG_OK=!!data.ok;PLAT=data.plateforme||{};state.uid=PROFILE.id;LAST_ACT=Date.now();
   if(!ORG_OK){AUTH={mode:'attente'};render();renderLock();return;}
   try{const c=JSON.parse(localStorage.getItem(cacheKey())||'null');if(c){db=migrate(c.data);BASE=clone(c.base||{});VERSION=c.version;LOADED=true;render();}}catch(e){}
@@ -1797,7 +1802,7 @@ async function cloudSignup(f,join){
 async function cloudLogout(){
   try{if(pushTimer){clearTimeout(pushTimer);pushTimer=null;await pushNow();}}catch(e){}
   try{await SB.auth.signOut();}catch(e){}
-  PROFILE=null;ORG=null;ORG_OK=false;LOADED=false;MEMBERS=[];AUDIT=[];BASE=null;VERSION=0;CHG=0;state.uid=null;db=emptyDb();PIDX=null;
+  SUP=null;ORG_MOI=null;PLAT_TEAM=null;PLAT_TEAM_ORG=null;PROFILE=null;ORG=null;ORG_OK=false;LOADED=false;MEMBERS=[];AUDIT=[];BASE=null;VERSION=0;CHG=0;state.uid=null;db=emptyDb();PIDX=null;
   AUTH={mode:'login',last:AUTH.last};closeModal();render();renderLock();toast('Vous êtes déconnecté 👋');
 }
 function waPlat(txt){return PLAT.whatsapp?waLink(PLAT.whatsapp,txt):'';}
@@ -1840,18 +1845,23 @@ function cloudSubmit(){
 function cardEquipe(){
   const code=ORG?.code||'';
   const inv=`Bonjour, voici votre accès à GestImmo pour l’agence ${ORG?.nom||''} :\n1) Ouvrez ${location.origin+location.pathname}\n2) Touchez « Je suis gestionnaire »\n3) Code d’invitation : ${code}`;
+  const plat=PROFILE?.role==='plateforme';
   return `<div class="card"><h3 style="margin-top:0">👥 Équipe & accès — ${esc(ORG?.nom||'')}</h3>
-  <div class="row"><div><p class="muted small" style="margin:0">Code d’invitation pour vos gestionnaires</p><p class="code-secours" style="margin:6px 0;font-size:20px">${esc(code)}</p></div>
-  <div class="btns" style="margin:0"><a class="btn wa sm" href="${esc(waLink('',inv))}" target="_blank" rel="noopener">Envoyer par WhatsApp</a><button class="sm ghost" data-a="copierCode">📋 Copier</button><button class="sm ghost" data-a="nouveauCode">🔄 Nouveau code</button></div></div>
-  ${tbl([['Nom'],['Nom d’utilisateur'],['Rôle'],['Téléphone'],['État'],['','act']],MEMBERS.map(u=>[`<b>${esc(u.nom)}</b>`,`<code>${esc(u.login)}</code>`,`${u.role==='gestionnaire'?'👤':'👑'} ${ROLE[u.role]}`,esc(u.tel||'—'),u.actif===false?'<span class="badge neg">Désactivé</span>':'<span class="badge ok">Actif</span>',
-    u.role==='gestionnaire'?`<button class="sm ghost" data-a="resetMdp" data-id="${u.id}">Nouveau mot de passe</button><button class="sm ${u.actif===false?'':'danger'}" data-a="toggleMembre" data-id="${u.id}">${u.actif===false?'Réactiver':'Désactiver'}</button>`:'']),'Aucun membre.')}
+  ${SUP?'<p class="muted small">👑 Mode supervision : vous gérez les comptes de cette agence.</p>':`<div class="row"><div><p class="muted small" style="margin:0">Code d’invitation pour vos gestionnaires</p><p class="code-secours" style="margin:6px 0;font-size:20px">${esc(code)}</p></div>
+  <div class="btns" style="margin:0"><a class="btn wa sm" href="${esc(waLink('',inv))}" target="_blank" rel="noopener">Envoyer par WhatsApp</a><button class="sm ghost" data-a="copierCode">📋 Copier</button><button class="sm ghost" data-a="nouveauCode">🔄 Nouveau code</button></div></div>`}
+  ${tbl([['Nom'],['Nom d’utilisateur'],['Rôle'],['Téléphone'],['État'],['','act']],MEMBERS.filter(u=>!u.supprime).map(u=>{const gerable=u.id!==PROFILE?.id&&u.role!=='plateforme'&&(u.role==='gestionnaire'||plat);return [`<b>${esc(u.nom)}</b>`,`<code>${esc(u.login)}</code>`,`${u.role==='gestionnaire'?'👤':'👑'} ${ROLE[u.role]}`,esc(u.tel||'—'),u.actif===false?'<span class="badge neg">Désactivé</span>':'<span class="badge ok">Actif</span>',
+    gerable?`<button class="sm ghost" data-a="resetMdp" data-id="${u.id}">Nouveau mot de passe</button><button class="sm ${u.actif===false?'':'ghost'}" data-a="toggleMembre" data-id="${u.id}">${u.actif===false?'Réactiver':'Désactiver'}</button><button class="sm danger" data-a="supprimerMembre" data-id="${u.id}">🗑️ Supprimer</button>`:''];}),'Aucun membre.')}
+  ${MEMBERS.some(u=>u.supprime)?`<p class="muted small">Comptes supprimés (gardés dans l’historique) : ${MEMBERS.filter(u=>u.supprime).map(u=>esc(u.nom)).join(', ')}</p>`:''}
   <div class="btns"><button class="sm ghost" data-a="modesCaisse">💵 Argent géré par le gestionnaire</button><button class="sm ghost" data-a="goto" data-id="journal">🛡️ Journal serveur</button><button class="sm ghost" data-a="monMdpCloud">🔑 Changer mon mot de passe</button></div>
   ${ORG?.expire_le?`<p class="muted small">Abonnement valable jusqu’au <b>${fmtDate(ORG.expire_le)}</b>.</p>`:''}</div>`;
 }
+A.supprimerMembre=id=>{const u=MEMBERS.find(x=>x.id===id)||(PLAT_TEAM||[]).find(x=>x.id===id);if(!u)return;
+  modal(`Supprimer le compte de ${u.nom}`,`<p>Le compte <b>${esc(u.nom)}</b> (<code>${esc(u.login||u.username||'')}</code>, ${ROLE[u.role]||u.role}) sera <b>définitivement supprimé</b> : il ne pourra plus se connecter.</p><p class="muted small">Ses reçus, paiements et actions passées restent dans l’historique avec son nom. Pour bloquer temporairement, utilisez plutôt « Désactiver ».</p>${u.role==='admin'?'<div class="alert a-warn"><span>⚠️</span><span>C’est le Super admin de l’agence : l’agence n’aura plus d’administrateur. Pour supprimer toute l’agence, utilisez « Supprimer l’agence » dans la console.</span></div>':''}`+fld(`Pour confirmer, tapez SUPPRIMER`,'conf',''),
+  d=>{if(d.conf.trim().toUpperCase()!=='SUPPRIMER')fail('Tapez SUPPRIMER pour confirmer');(async()=>{const {error}=await SB.rpc('delete_member',{p_user:id});if(error)return toast(cloudErr(error));closeModal();await refreshTeam();if(PLAT_TEAM_ORG)await chargerPlatTeam(PLAT_TEAM_ORG);render();toast('Compte supprimé ✅');})();return false;},'Supprimer définitivement');};
 A.copierCode=async()=>{try{await navigator.clipboard.writeText(ORG.code);toast('Code copié ✅');}catch(e){toast('Code : '+ORG.code);}};
 A.nouveauCode=async()=>{if(!await ask('Créer un nouveau code ? L’ancien ne fonctionnera plus.'))return;const {data,error}=await SB.rpc('regen_code');if(error)return toast(cloudErr(error));ORG.code=data;render();toast('Nouveau code créé ✅');};
-A.toggleMembre=async id=>{const u=MEMBERS.find(x=>x.id===id);const {error}=await SB.rpc('set_member',{p_user:id,p_actif:u.actif===false});if(error)return toast(cloudErr(error));await refreshTeam();render();toast(u.actif===false?'Gestionnaire réactivé ✅':'Gestionnaire désactivé');};
-A.resetMdp=id=>{const u=MEMBERS.find(x=>x.id===id)||(PLAT_ORGS||[]).map(o=>o.proprietaire).find(p=>p&&p.id===id);modal(`Nouveau mot de passe — ${u?.nom||''}`,`<label>Nouveau mot de passe (6 caractères min.)<input name="p1" type="text" required minlength="6" autocomplete="new-password"></label><p class="muted small">Communiquez-le à la personne. Elle pourra le changer ensuite.</p>`,
+A.toggleMembre=async id=>{const u=MEMBERS.find(x=>x.id===id);const {error}=await (PROFILE?.role==='plateforme'?SB.rpc('platform_set_member',{p_user:id,p_actif:u.actif===false}):SB.rpc('set_member',{p_user:id,p_actif:u.actif===false}));if(error)return toast(cloudErr(error));await refreshTeam();render();toast(u.actif===false?'Gestionnaire réactivé ✅':'Gestionnaire désactivé');};
+A.resetMdp=id=>{const u=MEMBERS.find(x=>x.id===id)||(PLAT_TEAM||[]).find(x=>x.id===id)||(PLAT_ORGS||[]).map(o=>o.proprietaire).find(p=>p&&p.id===id);modal(`Nouveau mot de passe — ${u?.nom||''}`,`<label>Nouveau mot de passe (6 caractères min.)<input name="p1" type="text" required minlength="6" autocomplete="new-password"></label><p class="muted small">Communiquez-le à la personne. Elle pourra le changer ensuite.</p>`,
   d=>{if(d.p1.length<6)fail('6 caractères minimum');(async()=>{const {error}=await SB.rpc('reset_password',{p_user:id,p_new:d.p1});if(error)return toast(cloudErr(error));closeModal();toast('Mot de passe changé ✅');})();return false;});};
 A.monMdpCloud=()=>modal('Changer mon mot de passe',`<label>Nouveau mot de passe (6 caractères min.)<input name="p1" type="password" required minlength="6" autocomplete="new-password"></label><label>Confirmer<input name="p2" type="password" required></label>`,
   d=>{if(d.p1.length<6)fail('6 caractères minimum');if(d.p1!==d.p2)fail('Les mots de passe ne correspondent pas');(async()=>{const {error}=await SB.auth.updateUser({password:d.p1});if(error)return toast(cloudErr(error));log('comptes','Mot de passe changé par '+PROFILE.nom);save();closeModal();toast('Mot de passe changé ✅');})();return false;});
@@ -1872,9 +1882,36 @@ function pagePlateforme(){
   ${tbl([['Agence / propriétaire'],['Inscrit le'],['Utilisation'],['Statut'],['Expire le'],['','act']],V.map(o=>{const p=o.proprietaire||{};const msg=`Bonjour ${p.nom||''}, votre compte GestImmo (${o.nom}) est ${o.statut==='active'?'activé ✅':'en attente'}.`;return [
     `<b>${esc(o.nom)}</b><div class="muted small">${esc(p.nom||'')} · <code>${esc(p.username||'')}</code>${p.tel?' · '+esc(p.tel):''}</div>${o.note?`<div class="muted small">📝 ${esc(o.note)}</div>`:''}`,
     fmtDate(String(o.created_at).slice(0,10)),`${o.immeubles} imm. · ${o.logements} log. · ${o.locataires} loc. · ${o.membres} compte(s)`,st(o),o.expire_le?fmtDate(o.expire_le)+(o.statut==='active'?` <span class="muted small">(${jours(o.expire_le)} j)</span>`:''):'—',
-    `<button class="sm primary" data-a="platEdit" data-id="${o.id}">${o.statut==='active'?'Gérer':'Activer'}</button>${p.tel?`<a class="btn wa sm" href="${esc(waLink(p.tel,msg))}" target="_blank" rel="noopener">WhatsApp</a>`:''}${p.id?`<button class="sm ghost" data-a="resetMdp" data-id="${p.id}">Mot de passe</button>`:''}`];}),'Aucun client.')}`;
+    `<button class="sm primary" data-a="platEdit" data-id="${o.id}">${o.statut==='active'?'Abonnement':'Activer'}</button><button class="sm" data-a="superviser" data-id="${o.id}">👁️ Ouvrir</button><button class="sm ghost" data-a="platEquipe" data-id="${o.id}">👥 Comptes</button><button class="sm danger" data-a="supprimerOrg" data-id="${o.id}">🗑️</button>${p.tel?`<a class="btn wa sm" href="${esc(waLink(p.tel,msg))}" target="_blank" rel="noopener">WhatsApp</a>`:''}${p.id?`<button class="sm ghost" data-a="resetMdp" data-id="${p.id}">Mot de passe</button>`:''}`];}),'Aucun client.')}`;
 }
 A.platReload=()=>{PLAT_ORGS=null;render();};
+let PLAT_TEAM=null,PLAT_TEAM_ORG=null;
+async function chargerPlatTeam(orgId){const {data,error}=await SB.rpc('platform_team',{p_org:orgId});if(error){toast(cloudErr(error));return;}PLAT_TEAM=(data||[]).map(u=>({...u,login:u.username}));PLAT_TEAM_ORG=orgId;}
+A.platEquipe=async orgId=>{const o=PLAT_ORGS.find(x=>x.id===orgId);await chargerPlatTeam(orgId);
+  modal(`👥 Comptes — ${o.nom}`,tbl([['Nom'],['Utilisateur'],['Rôle'],['État'],['','act']],PLAT_TEAM.filter(u=>!u.supprime).map(u=>[`<b>${esc(u.nom)}</b>${u.tel?`<div class="muted small">${esc(u.tel)}</div>`:''}`,`<code>${esc(u.username)}</code>`,ROLE[u.role]||u.role,u.actif===false?'<span class="badge neg">Désactivé</span>':'<span class="badge ok">Actif</span>',
+    u.role==='plateforme'?'':`<button type="button" class="sm ghost" data-a="resetMdp" data-id="${u.id}">Mot de passe</button><button type="button" class="sm ghost" data-a="platToggle" data-id="${u.id}">${u.actif===false?'Réactiver':'Désactiver'}</button><button type="button" class="sm danger" data-a="supprimerMembre" data-id="${u.id}">🗑️</button>`]),'Aucun compte.')+
+    (PLAT_TEAM.some(u=>u.supprime)?`<p class="muted small">Supprimés : ${PLAT_TEAM.filter(u=>u.supprime).map(u=>esc(u.nom)).join(', ')}</p>`:'')+'<div class="actions"><button type="button" class="ghost" data-a="closeModal">Fermer</button></div>',null);};
+A.platToggle=async id=>{const u=PLAT_TEAM.find(x=>x.id===id);const {error}=await SB.rpc('platform_set_member',{p_user:id,p_actif:u.actif===false});if(error)return toast(cloudErr(error));toast(u.actif===false?'Compte réactivé ✅':'Compte désactivé');A.platEquipe(PLAT_TEAM_ORG);};
+A.supprimerOrg=orgId=>{const o=PLAT_ORGS.find(x=>x.id===orgId);
+  modal(`🗑️ Supprimer l’agence ${o.nom}`,`<div class="alert a-neg"><span>⚠️</span><span>Action <b>définitive</b> : tous les comptes de l’agence (${o.membres}), ses ${o.immeubles} immeuble(s), ${o.locataires} locataire(s), reçus, photos et sauvegardes seront effacés.</span></div>`+fld(`Pour confirmer, tapez le nom de l’agence : ${o.nom}`,'conf',''),
+  d=>{(async()=>{const {error}=await SB.rpc('delete_org',{p_org:orgId,p_confirm:d.conf});if(error)return toast(cloudErr(error));closeModal();PLAT_ORGS=null;render();toast('Agence supprimée');})();return false;},'Supprimer définitivement');};
+A.superviser=async orgId=>{
+  const o=PLAT_ORGS.find(x=>x.id===orgId);if(!o)return;
+  try{if(pushTimer){await pushNow();}}catch(e){}
+  if(!SUP)ORG_MOI=ORG;
+  SUP={id:o.id,nom:o.nom};ORG={id:o.id,nom:o.nom,statut:o.statut,expire_le:o.expire_le};
+  LOADED=false;BASE=null;VERSION=0;CHG=0;db=emptyDb();PIDX=null;AUDIT=[];state.imm='all';state.page='dash';
+  setSync('⏳ Ouverture…','wait');
+  try{const r=await rpcGet();if(r.error)throw r.error;db=migrate(clone(r.data.data||{}));BASE=clone(r.data.data||{});VERSION=r.data.version;LOADED=true;}catch(e){toast(cloudErr(e));return A.finSupervision();}
+  await refreshTeam();await refreshAudit();loadLogo();render();setSync('☁️ Synchronisé','ok');toast(`👁️ Vous supervisez ${o.nom}`);
+};
+A.finSupervision=async()=>{
+  try{if(pushTimer){await pushNow();}}catch(e){}
+  SUP=null;ORG=ORG_MOI||ORG;LOADED=false;BASE=null;VERSION=0;CHG=0;db=emptyDb();AUDIT=[];state.page='plateforme';PLAT_ORGS=null;
+  try{const c=JSON.parse(localStorage.getItem(cacheKey())||'null');if(c){db=migrate(c.data);BASE=clone(c.base||{});VERSION=c.version;}}catch(e){}
+  try{const r=await rpcGet();if(!r.error){db=migrate(clone(r.data.data||{}));BASE=clone(r.data.data||{});VERSION=r.data.version;}}catch(e){}
+  LOADED=true;await refreshTeam();await refreshAudit();loadLogo();render();toast('Retour à votre agence');
+};
 A.platF=v=>{state.pf=v;render();};
 A.platSave=async()=>{const {error}=await SB.rpc('platform_settings',{p_whatsapp:document.getElementById('plWa').value.trim(),p_message:document.getElementById('plMsg').value.trim()});if(error)return toast(cloudErr(error));PLAT={whatsapp:document.getElementById('plWa').value.trim(),message:document.getElementById('plMsg').value.trim()};toast('Enregistré ✅');};
 A.platEdit=id=>{const o=PLAT_ORGS.find(x=>x.id===id);const addM=n=>{const d=new Date(Math.max(Date.now(),o.expire_le?new Date(o.expire_le+'T00:00:00').getTime():0));d.setMonth(d.getMonth()+n);return d.toISOString().slice(0,10);};
