@@ -652,6 +652,11 @@ function pageParametres(){
       ${AG().commission?`<p class="muted small">Commission de gestion : ${AG().commission} %</p>`:''}
       <div class="btns"><button class="sm primary" data-a="editAgence">Modifier les informations</button><label class="btn sm ghost" style="position:relative;margin:0">🖼️ ${AG().logo?'Changer le logo':'Ajouter un logo'}<input type="file" id="logoFile" accept="image/*" class="hidden-input"></label>${AG().logo?'<button class="sm danger" data-a="delLogo">Retirer le logo</button>':''}</div>
     </div>
+    ${CLOUD?`<div class="card"><h3 style="margin-top:0">📶 Connexion & données mobiles</h3>
+      <label class="chk"><input type="checkbox" id="ecoMode" ${ECO()?'checked':''}> Mode économie de données</label>
+      <p class="muted small">Normal : vérification des nouveautés toutes les minutes. Économie : toutes les 5 minutes, et les photos ne se chargent que quand vous les touchez. Dans les deux cas, l’application <b>fonctionne sans internet</b> : vos modifications sont gardées sur l’appareil et envoyées automatiquement au retour du réseau.</p>
+      <p class="muted small">État : ${HORS_LIGNE||navigator.onLine===false?'📴 hors ligne':'☁️ en ligne'}${enAttente()?` · ${CHG-CHG_OK} modification(s) en attente d’envoi`:''}</p>
+      <button class="sm ghost" data-a="syncMaintenant">🔄 Synchroniser maintenant</button></div>`:''}
     <div class="card"><h3 style="margin-top:0">📲 Application</h3>
       ${INSTALL?'<p class="muted">Installez GestImmo sur cet appareil : icône sur l’écran d’accueil, ouverture en plein écran, fonctionne même sans internet.</p><button class="primary sm" data-a="installer">📲 Installer l’application</button>':window.matchMedia&&matchMedia('(display-mode: standalone)').matches?'<p class="ok-msg">✅ Application installée sur cet appareil.</p>':'<p class="muted">Pour installer GestImmo comme une application : ouvrez le site dans Chrome, puis menu ⋮ → <b>Ajouter à l’écran d’accueil</b> (ou <b>Installer l’application</b>).</p>'}
     </div>
@@ -1177,7 +1182,7 @@ function pjInputs(types,aide){return `<div class="btns">${types.map(t=>`<label c
 function compressImg(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1000/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(i,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',0.6));};i.onerror=rej;i.src=r.result;};r.onerror=rej;r.readAsDataURL(f);});}
 async function addPJ(files,type){for(const f of files){if(!/^image\//.test(f.type)){toast('Seules les images sont acceptées : prenez le reçu en photo');continue;}try{PJ.push({id:uid(),type,data:await compressImg(f),date:today()});}catch(e){toast('Image illisible');}}const l=document.getElementById('pjList');if(l)l.innerHTML=pjHtml();}
 A.pjDel=k=>{PJ.splice(Number(k),1);document.getElementById('pjList').innerHTML=pjHtml();};
-A.voirImg=k=>{const p=VIEWPJ[Number(k)];if(!p)return;const im=document.getElementById('lbImg');im.src=pieceSrc(p);im.dataset.pid=p.id;document.getElementById('lbCap').textContent=(PJT[p.type]||'')+(p.date?' · '+fmtDate(p.date):'');document.getElementById('lb').classList.remove('hidden');};
+A.voirImg=k=>{const p=VIEWPJ[Number(k)];if(!p)return;const im=document.getElementById('lbImg');im.src=pieceSrc(p,true);im.dataset.pid=p.id;document.getElementById('lbCap').textContent=(PJT[p.type]||'')+(p.date?' · '+fmtDate(p.date):'');document.getElementById('lb').classList.remove('hidden');};
 A.lbClose=()=>document.getElementById('lb').classList.add('hidden');
 
 const matTot=m=>(Number(m.qte)||1)*(Number(m.pu)||0);
@@ -1651,6 +1656,9 @@ function pageJournal(){
 }
 /* ===================== Mode en ligne : comptes, synchronisation, plateforme ===================== */
 let SUP=null,ORG_MOI=null;
+const ECO=()=>{try{return localStorage.getItem('gestimmo_eco')==='1';}catch(e){return false;}};
+const estReseau=e=>/Failed to fetch|NetworkError|network|Load failed|fetch|ERR_INTERNET|offline/i.test(String(e?.message||e||''));
+let HORS_LIGNE=false,NPOLL=0;
 const rpcGet=()=>SUP?SB.rpc('platform_get_data',{p_org:SUP.id}):SB.rpc('get_data');
 const rpcSave=(pl,v)=>SUP?SB.rpc('platform_save_data',{p_org:SUP.id,p_data:pl,p_version:v}):SB.rpc('save_data',{p_data:pl,p_version:v});
 const rpcVersion=()=>SUP?SB.rpc('platform_get_version',{p_org:SUP.id}):SB.rpc('get_version');
@@ -1663,7 +1671,7 @@ function setSync(t,cls){const el=document.getElementById('sync');if(!el)return;e
 
 /* --- Pièces jointes (photos) stockées à part --- */
 const PH_IMG="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"><rect width="4" height="3" fill="#e5e7eb"/></svg>');
-function pieceSrc(p){if(p.data)return p.data;if(PCACHE[p.id])return PCACHE[p.id];if(CLOUD)fetchPiece(p.id);return PH_IMG;}
+function pieceSrc(p,force){if(p.data)return p.data;if(PCACHE[p.id])return PCACHE[p.id];if(CLOUD&&(force||!ECO()))fetchPiece(p.id);return PH_IMG;}
 async function fetchPiece(id){if(!SB||PCACHE[id])return PCACHE[id];if(PFETCH[id])return PFETCH[id];
   PFETCH[id]=(async()=>{const {data,error}=await SB.from('pieces').select('data').eq('id',id).maybeSingle();if(!error&&data){PCACHE[id]=data.data;document.querySelectorAll(`img[data-pid="${id}"]`).forEach(i=>i.src=data.data);}delete PFETCH[id];return PCACHE[id];})();return PFETCH[id];}
 const allPieces=d=>[...(d.incidents||[]).flatMap(i=>i.pieces||[]),...(d.depenses||[]).flatMap(x=>x.pieces||[])];
@@ -1697,10 +1705,12 @@ function merge3(base,loc,rem){
 }
 
 /* --- Synchronisation --- */
+let NOUVELLE_CONNEXION=false,CHG_OK=0;
+const enAttente=()=>CHG!==CHG_OK;
 const cacheKey=()=>KEY+'_org_'+(SUP?'sup_'+SUP.id:(ORG?.id||''));
-function cacheLocal(){try{localStorage.setItem(cacheKey(),JSON.stringify({data:db,base:BASE,version:VERSION}));}catch(e){}}
+function cacheLocal(){try{localStorage.setItem(cacheKey(),JSON.stringify({data:db,base:BASE,version:VERSION,chg:enAttente()}));}catch(e){}}
 let pushTimer=null;
-function schedulePush(){if(!CLOUD||!PROFILE||!ORG_OK||!LOADED)return;CHG++;cacheLocal();setSync('⏳ Enregistrement…','wait');clearTimeout(pushTimer);pushTimer=setTimeout(pushNow,1200);}
+function schedulePush(){if(!CLOUD||!PROFILE||!ORG_OK||!LOADED)return;CHG++;cacheLocal();if(navigator.onLine===false||HORS_LIGNE)setSync('📴 Hors ligne — '+(CHG-CHG_OK)+' modification(s) gardée(s) sur l’appareil','off');else setSync('⏳ Enregistrement…','wait');clearTimeout(pushTimer);pushTimer=setTimeout(pushNow,navigator.onLine===false?60000:2500);}
 async function pushNow(){
   clearTimeout(pushTimer);pushTimer=null;
   if(PUSHING){pushTimer=setTimeout(pushNow,800);return;}
@@ -1715,39 +1725,56 @@ async function pushNow(){
       if(/Interdit|Accès refusé|Abonnement/i.test(error.message)){toast('⛔ '+cloudErr(error));await reloadRemote();break;}
       throw error;
     }
+    if(CHG===c0)CHG_OK=c0;cacheLocal();
     setSync(CHG===c0?'☁️ Synchronisé':'⏳ Enregistrement…',CHG===c0?'ok':'wait');
     if(document.getElementById('modal').classList.contains('hidden'))render();
-  }catch(e){setSync('📴 Hors ligne — sera envoyé dès le retour du réseau','off');pushTimer=setTimeout(pushNow,15000);PUSHING=false;return;}
+  }catch(e){setSync('📴 Hors ligne — '+(CHG-CHG_OK)+' modification(s) en attente, envoi au retour du réseau','off');HORS_LIGNE=true;pushTimer=setTimeout(pushNow,navigator.onLine===false?120000:60000);PUSHING=false;return;}
   PUSHING=false;
   if(CHG!==c0&&!pushTimer)pushTimer=setTimeout(pushNow,300);
 }
 async function reloadRemote(){const r=await rpcGet();if(r.error)throw r.error;const rem=r.data.data||{};db=migrate(clone(rem));BASE=clone(rem);VERSION=r.data.version;PIDX=null;LOADED=true;cacheLocal();if(document.getElementById('modal').classList.contains('hidden'))render();}
-async function poll(){
+async function poll(force){
   if(!CLOUD||!PROFILE||!ORG_OK||!LOADED||PUSHING||pushTimer)return;
+  if(navigator.onLine===false){HORS_LIGNE=true;setSync('📴 Hors ligne — vos modifications sont gardées','off');return;}
+  NPOLL++;
   try{
-    const me=await SB.rpc('me');
-    if(!me.error&&me.data){if(!SUP)ORG={...ORG,...me.data.org};else ORG_MOI={...ORG_MOI,...me.data.org};PROFILE={...PROFILE,...me.data.profile,login:me.data.profile.username};if(!me.data.ok){ORG_OK=false;AUTH={mode:'attente'};render();renderLock();return;}}
-    if(isAdmin())refreshTeam();
+    const me=(force||NPOLL%5===1||HORS_LIGNE)?await SB.rpc('me'):{};
+    if(me.error&&estReseau(me.error))throw me.error;
+    if(!me.error&&me.data){cacheMe(me.data);if(!SUP)ORG={...ORG,...me.data.org};else ORG_MOI={...ORG_MOI,...me.data.org};PROFILE={...PROFILE,...me.data.profile,login:me.data.profile.username};if(!me.data.ok){ORG_OK=false;AUTH={mode:'attente'};render();renderLock();return;}}
+    if(isAdmin()&&(force||NPOLL%5===1))refreshTeam();
     const {data,error}=await rpcVersion();if(error)throw error;
+    if(HORS_LIGNE){HORS_LIGNE=false;if(enAttente()&&!pushTimer){pushNow();return;}}
     if(data>VERSION&&!PUSHING){await reloadRemote();setSync('☁️ Synchronisé','ok');}
     else setSync('☁️ Synchronisé','ok');
   }catch(e){setSync('📴 Hors ligne','off');}
 }
-setInterval(()=>{if(document.visibilityState==='visible')poll();},15000);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')poll();});
-window.addEventListener('online',()=>{if(CLOUD&&PROFILE)pushNow();});
+let DERNIER_POLL=0;
+setInterval(()=>{const pas=ECO()?300000:60000;if(document.visibilityState==='visible'&&Date.now()-DERNIER_POLL>=pas-500){DERNIER_POLL=Date.now();poll();}},15000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-DERNIER_POLL>20000){DERNIER_POLL=Date.now();poll(true);}});
+window.addEventListener('online',()=>{if(CLOUD&&PROFILE){HORS_LIGNE=false;setSync('🔄 Reconnexion…','wait');if(enAttente())pushNow();else poll(true);}});
+window.addEventListener('offline',()=>{if(CLOUD&&PROFILE){HORS_LIGNE=true;setSync('📴 Hors ligne — vos modifications sont gardées','off');}});
+function cacheMe(d){try{localStorage.setItem(KEY+'_me',JSON.stringify(d));}catch(e){}}
 
 /* --- Session --- */
 async function refreshTeam(){try{const {data}=await (SUP?SB.rpc('platform_team',{p_org:SUP.id}):SB.rpc('team'));MEMBERS=(data||[]).map(u=>({id:u.id,nom:u.nom,login:u.username,tel:u.tel,role:u.role,supprime:!!u.supprime,actif:u.actif}));}catch(e){}}
 async function refreshAudit(){if(!isAdmin())return;try{const {data}=await (SUP?SB.rpc('platform_audit',{p_org:SUP.id,p_limit:400}):SB.rpc('audit_list',{p_limit:400}));AUDIT=data||[];}catch(e){}}
 async function cloudBoot(){
   AUTH.mode='loading';renderLock();
-  const {data,error}=await SB.rpc('me');
+  let {data,error}=await SB.rpc('me');
+  if(error&&estReseau(error)){
+    let c=null;try{c=JSON.parse(localStorage.getItem(KEY+'_me')||'null');}catch(e){}
+    const {data:{session}}=await SB.auth.getSession();
+    if(c&&session&&c.profile?.id===session.user?.id){data=c;error=null;HORS_LIGNE=true;}
+    else{AUTH={mode:'login',msg:'Pas de connexion internet. La toute première connexion sur cet appareil doit se faire avec internet.'};PROFILE=null;renderLock();return;}
+  }
   if(error){AUTH={mode:'login',msg:cloudErr(error)};PROFILE=null;renderLock();return;}
+  if(!HORS_LIGNE)cacheMe(data);
   if(!data){AUTH={mode:'login',msg:'Ce compte a été supprimé ou n’existe plus. Contactez votre Super admin ou l’équipe GestImmo.'};await SB.auth.signOut();renderLock();return;}
   PROFILE={...data.profile,login:data.profile.username};ORG=data.org;ORG_OK=!!data.ok;PLAT=data.plateforme||{};state.uid=PROFILE.id;LAST_ACT=Date.now();
   if(!ORG_OK){AUTH={mode:'attente'};render();renderLock();return;}
-  try{const c=JSON.parse(localStorage.getItem(cacheKey())||'null');if(c){db=migrate(c.data);BASE=clone(c.base||{});VERSION=c.version;LOADED=true;render();}}catch(e){}
+  try{const c=JSON.parse(localStorage.getItem(cacheKey())||'null');if(c){db=migrate(c.data);BASE=clone(c.base||{});VERSION=c.version;LOADED=true;if(c.chg){CHG=CHG_OK+1;}render();}}catch(e){}
+  if(HORS_LIGNE){if(!LOADED){AUTH={mode:'login',msg:'Pas de connexion internet et aucune donnée enregistrée sur cet appareil.'};PROFILE=null;renderLock();return;}
+    loadLogo();state.page=state.page||'dash';render();setSync('📴 Hors ligne — vos modifications sont gardées','off');toast('📴 Mode hors ligne : vous travaillez sur les données de cet appareil');return;}
   try{
     const r=await SB.rpc('get_data');if(r.error)throw r.error;
     const rem=r.data.data||{};
@@ -1755,10 +1782,9 @@ async function cloudBoot(){
     BASE=clone(rem);VERSION=r.data.version;LOADED=true;PIDX=null;
   }catch(e){if(!LOADED){AUTH={mode:'login',msg:cloudErr(e)};renderLock();return;}}
   await refreshTeam();await refreshAudit();
-  log('connexion',`${PROFILE.nom} (${ROLE[PROFILE.role]})`);
+  if(NOUVELLE_CONNEXION){NOUVELLE_CONNEXION=false;log('connexion',`${PROFILE.nom} (${ROLE[PROFILE.role]})`);CHG++;}
   loadLogo();cacheLocal();state.page=state.page||'dash';render();
-  if(CHG)schedulePush();else{const nvide=(db.journal||[]).length;schedulePush();}
-  setSync('☁️ Synchronisé','ok');
+  if(enAttente()){CHG--;schedulePush();}else setSync('☁️ Synchronisé','ok');
   const j=ORG.expire_le?jours(ORG.expire_le):null;
   toast(j!==null&&j<=7?`⚠️ Votre abonnement expire ${j<=0?'aujourd’hui':'dans '+j+' jour(s)'}`:`Bienvenue ${PROFILE.nom} 👋`);
 }
@@ -1777,7 +1803,7 @@ async function cloudLogin(u,p){
   const {error}=await SB.auth.signInWithPassword({email:emailOf(u),password:p});
   busy(false);
   if(error){ESSAIS++;if(ESSAIS>=5)BLOQUE=Date.now()+30000*Math.min(10,ESSAIS-4);AUTH.msg=cloudErr(error);renderLock();return;}
-  ESSAIS=0;AUTH.msg='';await cloudBoot();
+  ESSAIS=0;AUTH.msg='';NOUVELLE_CONNEXION=true;await cloudBoot();
 }
 function busy(on){const b=document.querySelector('#lockForm button.primary');if(b){b.disabled=on;if(on){b.dataset.t=b.textContent;b.textContent='Patientez…';}else if(b.dataset.t)b.textContent=b.dataset.t;}}
 async function cloudSignup(f,join){
@@ -1795,14 +1821,14 @@ async function cloudSignup(f,join){
     if(!data.session)throw new Error('Inscription impossible : la confirmation par e-mail est activée sur le serveur.');
     const r=join?await SB.rpc('join_org',{p_code:f.code,p_username:lg,p_nom:f.nom,p_tel:f.tel}):await SB.rpc('register_owner',{p_username:lg,p_nom:f.nom,p_tel:f.tel,p_agence:f.agence||''});
     if(r.error){await SB.auth.signOut();throw r.error;}
-    busy(false);AUTH={mode:'loading'};await cloudBoot();
+    busy(false);AUTH={mode:'loading'};NOUVELLE_CONNEXION=true;await cloudBoot();
     if(r.data?.role==='plateforme')setTimeout(()=>toast('👑 Vous êtes le propriétaire de la plateforme GestImmo'),1500);
   }catch(e){busy(false);AUTH.msg=cloudErr(e);renderLock();}
 }
 async function cloudLogout(){
   try{if(pushTimer){clearTimeout(pushTimer);pushTimer=null;await pushNow();}}catch(e){}
   try{await SB.auth.signOut();}catch(e){}
-  SUP=null;ORG_MOI=null;PLAT_TEAM=null;PLAT_TEAM_ORG=null;PROFILE=null;ORG=null;ORG_OK=false;LOADED=false;MEMBERS=[];AUDIT=[];BASE=null;VERSION=0;CHG=0;state.uid=null;db=emptyDb();PIDX=null;
+  SUP=null;ORG_MOI=null;PLAT_TEAM=null;PLAT_TEAM_ORG=null;PROFILE=null;ORG=null;ORG_OK=false;LOADED=false;MEMBERS=[];AUDIT=[];BASE=null;VERSION=0;CHG=0;CHG_OK=0;state.uid=null;db=emptyDb();PIDX=null;
   AUTH={mode:'login',last:AUTH.last};closeModal();render();renderLock();toast('Vous êtes déconnecté 👋');
 }
 function waPlat(txt){return PLAT.whatsapp?waLink(PLAT.whatsapp,txt):'';}
@@ -1885,6 +1911,7 @@ function pagePlateforme(){
     `<button class="sm primary" data-a="platEdit" data-id="${o.id}">${o.statut==='active'?'Abonnement':'Activer'}</button><button class="sm" data-a="superviser" data-id="${o.id}">👁️ Ouvrir</button><button class="sm ghost" data-a="platEquipe" data-id="${o.id}">👥 Comptes</button><button class="sm danger" data-a="supprimerOrg" data-id="${o.id}">🗑️</button>${p.tel?`<a class="btn wa sm" href="${esc(waLink(p.tel,msg))}" target="_blank" rel="noopener">WhatsApp</a>`:''}${p.id?`<button class="sm ghost" data-a="resetMdp" data-id="${p.id}">Mot de passe</button>`:''}`];}),'Aucun client.')}`;
 }
 A.platReload=()=>{PLAT_ORGS=null;render();};
+A.syncMaintenant=async()=>{if(navigator.onLine===false)return toast('📴 Pas de connexion internet pour le moment');setSync('🔄 Synchronisation…','wait');if(enAttente()||pushTimer)await pushNow();else await poll(true);render();toast('Synchronisation terminée ✅');};
 let PLAT_TEAM=null,PLAT_TEAM_ORG=null;
 async function chargerPlatTeam(orgId){const {data,error}=await SB.rpc('platform_team',{p_org:orgId});if(error){toast(cloudErr(error));return;}PLAT_TEAM=(data||[]).map(u=>({...u,login:u.username}));PLAT_TEAM_ORG=orgId;}
 A.platEquipe=async orgId=>{const o=PLAT_ORGS.find(x=>x.id===orgId);await chargerPlatTeam(orgId);
@@ -1900,14 +1927,14 @@ A.superviser=async orgId=>{
   try{if(pushTimer){await pushNow();}}catch(e){}
   if(!SUP)ORG_MOI=ORG;
   SUP={id:o.id,nom:o.nom};ORG={id:o.id,nom:o.nom,statut:o.statut,expire_le:o.expire_le};
-  LOADED=false;BASE=null;VERSION=0;CHG=0;db=emptyDb();PIDX=null;AUDIT=[];state.imm='all';state.page='dash';
+  LOADED=false;BASE=null;VERSION=0;CHG=0;CHG_OK=0;db=emptyDb();PIDX=null;AUDIT=[];state.imm='all';state.page='dash';
   setSync('⏳ Ouverture…','wait');
   try{const r=await rpcGet();if(r.error)throw r.error;db=migrate(clone(r.data.data||{}));BASE=clone(r.data.data||{});VERSION=r.data.version;LOADED=true;}catch(e){toast(cloudErr(e));return A.finSupervision();}
   await refreshTeam();await refreshAudit();loadLogo();render();setSync('☁️ Synchronisé','ok');toast(`👁️ Vous supervisez ${o.nom}`);
 };
 A.finSupervision=async()=>{
   try{if(pushTimer){await pushNow();}}catch(e){}
-  SUP=null;ORG=ORG_MOI||ORG;LOADED=false;BASE=null;VERSION=0;CHG=0;db=emptyDb();AUDIT=[];state.page='plateforme';PLAT_ORGS=null;
+  SUP=null;ORG=ORG_MOI||ORG;LOADED=false;BASE=null;VERSION=0;CHG=0;CHG_OK=0;db=emptyDb();AUDIT=[];state.page='plateforme';PLAT_ORGS=null;
   try{const c=JSON.parse(localStorage.getItem(cacheKey())||'null');if(c){db=migrate(c.data);BASE=clone(c.base||{});VERSION=c.version;}}catch(e){}
   try{const r=await rpcGet();if(!r.error){db=migrate(clone(r.data.data||{}));BASE=clone(r.data.data||{});VERSION=r.data.version;}}catch(e){}
   LOADED=true;await refreshTeam();await refreshAudit();loadLogo();render();toast('Retour à votre agence');
@@ -1988,6 +2015,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   if(e.target.id==='mois'&&e.target.value){state.mois=e.target.value;render();}
   if(e.target.id==='immSel'){state.imm=e.target.value;render();}
+  if(e.target.id==='ecoMode'){try{localStorage.setItem('gestimmo_eco',e.target.checked?'1':'0');}catch(_){}toast(e.target.checked?'Mode économie de données activé':'Mode normal');}
   if(e.target.id==='autoRecu'){db.settings.autoRecu=e.target.checked;save();toast(e.target.checked?'Reçu automatique activé':'Reçu automatique désactivé');}
   if(e.target.id==='importFile'&&e.target.files[0]){if(isAdmin()||compromis())importFile(e.target.files[0]);else toast('🔒 Réservé au Super admin');}
   if(e.target.id==='jfSel'){state.jf=e.target.value;render();}
