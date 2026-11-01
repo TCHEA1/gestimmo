@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f4c3a">
 <link rel="manifest" href="manifest.webmanifest">
+<script src="supabase.js"></script>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -123,6 +124,11 @@ table.mini{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}table
 .demo-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#fef3c7;border:1px solid #fcd34d;color:#78350f;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:14px}
 .pw{display:flex;gap:6px;align-items:center;margin-top:4px}.pw input{margin:0}.pw button{padding:9px 11px}
 #lockForm label{font-size:13px}code{background:#f3f4f6;border-radius:5px;padding:1px 6px;font-size:13px}
+.sync{font-size:12px;color:#d1fae5;white-space:nowrap;opacity:.9}.sync.off{color:#fecaca}.sync.wait{color:#fde68a}
+@media(max-width:700px){.sync{display:none}}
+.spin{width:34px;height:34px;border:4px solid #e5e7eb;border-top-color:#0f4c3a;border-radius:50%;margin:16px auto;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.auth-links{margin-top:8px}.auth-new{border-top:1px solid #e5e7eb;margin-top:14px;padding-top:12px}
+#lockForm{max-height:94vh;overflow:auto}
 .hidden-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
 @media(max-width:959px){
   .rt thead{display:none}
@@ -157,8 +163,8 @@ const MARK=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(MARK_SVG)}`;
 const markImg=new Image();markImg.src=MARK;
 const SCRIPT=document.currentScript.textContent;
 const STYLE=document.querySelector('style').textContent;
-const NAV=[['dash','🏠','Accueil'],['immeubles','🏢','Immeubles'],['locataires','👥','Locataires'],['loyers','💰','Loyers'],['relances','📣','Relances'],['depenses','🧾','Dépenses'],['caisse','💵','Caisse'],['incidents','🛠️','Réparations'],['rapports','📊','Rapports'],['journal','🛡️','Journal'],['parametres','⚙️','Paramètres']];
-document.body.insertAdjacentHTML('afterbegin',`<header class="top"><b class="brand"><img src="${MARK}" class="brand-mark" alt=""><span>Gest<span class="gold">Immo</span></span></b><div class="topr"><select id="immSel" aria-label="Immeuble"></select><span id="who" class="who hidden"></span><button class="ghost sm hidden" id="lockBtn" data-a="logout" title="Verrouiller / se déconnecter">🔒</button></div></header>
+const NAV=[['dash','🏠','Accueil'],['immeubles','🏢','Immeubles'],['locataires','👥','Locataires'],['loyers','💰','Loyers'],['relances','📣','Relances'],['depenses','🧾','Dépenses'],['caisse','💵','Caisse'],['incidents','🛠️','Réparations'],['rapports','📊','Rapports'],['journal','🛡️','Journal'],['parametres','⚙️','Paramètres'],['plateforme','👑','Plateforme']];
+document.body.insertAdjacentHTML('afterbegin',`<header class="top"><b class="brand"><img src="${MARK}" class="brand-mark" alt=""><span>Gest<span class="gold">Immo</span></span></b><div class="topr"><select id="immSel" aria-label="Immeuble"></select><span id="sync" class="sync hidden"></span><span id="who" class="who hidden"></span><button class="ghost sm hidden" id="lockBtn" data-a="logout" title="Verrouiller / se déconnecter">🔒</button></div></header>
 <nav>${NAV.map(n=>`<button data-a="goto" data-id="${n[0]}">${n[1]} ${n[2]}</button>`).join('')}</nav>
 <main id="app"></main>
 <div id="toast" class="toast hidden"></div>
@@ -167,6 +173,8 @@ document.body.insertAdjacentHTML('afterbegin',`<header class="top"><b class="bra
 <div id="lb" class="lb hidden" data-a="lbClose"><img id="lbImg" alt=""><div id="lbCap"></div></div><div id="lock" class="lock hidden"><form id="lockForm" class="lockbox"><img src="${MARK}" width="64" height="64" alt="" style="display:block;margin:0 auto 8px"><h2 style="margin:0">Gest<span style="color:#d98a0b">Immo</span></h2><p class="muted" style="margin-top:2px">🔒 Application verrouillée</p><p class="muted">Entrez votre code PIN</p><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8"><button class="primary" style="width:100%;margin-top:12px">Déverrouiller</button></form></div>`);
 
 const KEY='gestimmo_v1';
+const SUPA_URL='https://nglamrwrkegfwamfvwpq.supabase.co',SUPA_KEY='sb_publishable_7mzvR9LWzX7n0NTFwMrMRQ_rfXbHQhD';
+const CLOUD=!!SUPA_URL&&(/github\.io$|onrender\.com$/.test(location.hostname)||(()=>{try{return localStorage.getItem('gestimmo_cloud')==='1';}catch(e){return false;}})());
 const CATS=['Électricité','Eau','Gardiennage','Entretien / réparations','Travaux','Taxes / impôts','Assurance','Frais de gestion','Autre'];
 const MODES=['Espèces','Orange Money','MTN MoMo','Wave','Moov Money','Virement bancaire','Chèque'];
 const TYPES=['Studio','Chambre salon','2 chambres salon','3 chambres salon','4 chambres salon','Villa','Magasin','Bureau','Autre'];
@@ -216,6 +224,7 @@ function migrate(d){
   return {...e,...d,settings:{...e.settings,...(d.settings||{})}};
 }
 function load(){
+  if(CLOUD)return emptyDb();
   let emb=null,loc=null;
   try{const t=document.getElementById('data').textContent.trim();if(t&&t!=='{}')emb=JSON.parse(t);}catch(e){}
   try{loc=JSON.parse(localStorage.getItem(KEY));}catch(e){}
@@ -229,6 +238,7 @@ function save(){
   PIDX=null;
   if(typeof ADMKEY!=='undefined'&&ADMKEY&&isAdmin())signer();
   db._ts=Date.now();
+  if(CLOUD){schedulePush();return;}
   try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){if(!ART)toast('⚠️ Mémoire de l’appareil pleine : exportez une sauvegarde puis retirez des photos anciennes.');}
   if(ART&&!readOnly){clearTimeout(pubTimer);pubTimer=setTimeout(publishNow,1200);}
 }
@@ -398,7 +408,7 @@ const fDep=(d={})=>sel('Immeuble','immeubleId',immOpts(),d.immeubleId||defImm())
 
 /* ---------- Pages ---------- */
 function pageDash(){
-  if(!db.logements.length)return `<div class="card hero"><div style="display:flex;align-items:center;gap:14px"><img src="${MARK}" width="64" height="64" alt="" style="border-radius:15px;box-shadow:0 0 0 2px rgba(255,255,255,.35)"><h2 style="margin:0">Bienvenue sur Gest<span class="gold">Immo</span> 👋</h2></div><p>Ajoutez votre immeuble et ses logements, puis enregistrez locataires, entrées, loyers, dépenses et incidents. Tout se calcule automatiquement.</p><div class="btns"><button data-a="addImmeuble">Ajouter un immeuble</button><button class="ghost" data-a="demo">🎭 Voir une démo d’abord</button>${comptes()?'':'<button class="ghost" data-a="creerAdmin">🔐 Créer mon compte</button>'}</div></div>`;
+  if(!db.logements.length)return `<div class="card hero"><div style="display:flex;align-items:center;gap:14px"><img src="${MARK}" width="64" height="64" alt="" style="border-radius:15px;box-shadow:0 0 0 2px rgba(255,255,255,.35)"><h2 style="margin:0">Bienvenue sur Gest<span class="gold">Immo</span> 👋</h2></div><p>Ajoutez votre immeuble et ses logements, puis enregistrez locataires, entrées, loyers, dépenses et incidents. Tout se calcule automatiquement.</p><div class="btns"><button data-a="addImmeuble">Ajouter un immeuble</button>${CLOUD?'':'<button class="ghost" data-a="demo">🎭 Voir une démo d’abord</button>'}${comptes()?'':'<button class="ghost" data-a="creerAdmin">🔐 Créer mon compte</button>'}</div></div>`;
   const ym=state.mois,L=LOGS(),B=BAUX();
   const actifs=B.filter(b=>bailActif(b,ym)).map(b=>({b,s:statutBail(b,ym)}));
   const att=sum(actifs,x=>x.s.du),enc=encaisseMois(ym),dep=depMois(ym),solde=enc-dep;
@@ -409,6 +419,7 @@ function pageDash(){
   const arr=B.map(b=>({b,a:arrieres(b)})).filter(x=>x.a.tot>0).sort((a,b)=>b.a.tot-a.a.tot);
   const arrTot=sum(arr,x=>x.a.tot);
   const al=[];
+  if(CLOUD&&ORG?.expire_le&&jours(ORG.expire_le)<=15)al.push(['warn','👑',`Votre abonnement GestImmo expire le ${fmtDate(ORG.expire_le)} (${jours(ORG.expire_le)} jour(s)). Contactez GestImmo pour le renouveler.`]);
   if(comptes()&&isAdmin()){
     const pb=controle();if(pb.length)al.push(['neg','🚨',`${pb.length} anomalie(s) de sécurité détectée(s) — ouvrez le Journal`]);
     const dv=db.depenses.filter(d=>d.statut==='a_valider');if(dv.length)al.push(['warn','🧾',`${dv.length} dépense(s) du gestionnaire à valider (${fcfa(sum(dv,d=>d.montant))})`]);
@@ -626,9 +637,9 @@ function pageRapports(){
 }
 
 function pageParametres(){
-  if(comptes()&&!isAdmin()){const u=me();return `<h2>Mon compte</h2><div class="card"><p>👤 <b>${esc(u?.nom||'')}</b> — ${ROLE[u?.role]||''}</p><p class="muted">Vous pouvez encaisser les loyers, émettre les reçus, enregistrer les locataires, les entrées, les réparations et les dépenses (validées par le Super admin). Toutes vos actions sont enregistrées.</p><div class="btns"><button class="sm ghost" data-a="exportJson">📤 Envoyer mes données au propriétaire (sauvegarde)</button><button class="sm ghost" data-a="monMdp">🔑 Changer mon mot de passe</button><button class="sm danger" data-a="logout">⏻ Se déconnecter</button></div><p class="muted small">Nom d’utilisateur : <code>${esc(u?.login||'')}</code></p></div>`;}
+  if(comptes()&&!isAdmin()){const u=me();return `<h2>Mon compte</h2><div class="card"><p>👤 <b>${esc(u?.nom||'')}</b> — ${ROLE[u?.role]||''}</p><p class="muted">Vous pouvez encaisser les loyers, émettre les reçus, enregistrer les locataires, les entrées, les réparations et les dépenses (validées par le Super admin). Toutes vos actions sont enregistrées.</p><div class="btns"><button class="sm ghost" data-a="exportJson">📤 Envoyer mes données au propriétaire (sauvegarde)</button><button class="sm ghost" data-a="${CLOUD?'monMdpCloud':'monMdp'}">🔑 Changer mon mot de passe</button><button class="sm danger" data-a="logout">⏻ Se déconnecter</button></div><p class="muted small">Nom d’utilisateur : <code>${esc(u?.login||'')}</code></p></div>`;}
   return `<h2>Paramètres</h2>
-  ${cardComptes()}
+  ${CLOUD?cardEquipe():cardComptes()}
   <div class="cols2">
     <div class="card ${comptes()?'hidden':''}"><h3 style="margin-top:0">🔒 Sécurité</h3>
       ${db.settings.pin?`<p>Code PIN <span class="badge ok">Activé</span></p><p class="muted">L’application demande le code à l’ouverture.</p><div class="btns"><button class="sm" data-a="setPin">Changer le code</button><button class="sm ghost" data-a="lock">Verrouiller maintenant</button><button class="sm danger" data-a="delPin">Désactiver</button></div>`
@@ -651,19 +662,21 @@ function pageParametres(){
       <div class="btns col">
         <button type="button" class="primary" data-a="exportJson">📤 Exporter la sauvegarde (.json)</button>
         <label class="btn ghost" style="position:relative;margin:0">📥 Importer une sauvegarde<input type="file" id="importFile" accept="application/json,.json" class="hidden-input"></label>
-        ${db._demo?'<button type="button" class="primary" data-a="quitterDemo">🎭 Quitter la démo → mon compte réel</button>':'<button type="button" class="ghost" data-a="demo">🎭 Voir la démo (vos données sont gardées)</button><button type="button" class="danger" data-a="reset">Tout effacer</button>'}
+        ${db._demo?'<button type="button" class="primary" data-a="quitterDemo">🎭 Quitter la démo → mon compte réel</button>':(CLOUD?'':'<button type="button" class="ghost" data-a="demo">🎭 Voir la démo (vos données sont gardées)</button>')+'<button type="button" class="danger" data-a="reset">Tout effacer</button>'}
       </div>
     </div>
   </div>
   <div class="card"><h3 style="margin-top:0">ℹ️ GestImmo v6</h3><p class="muted">${db.immeubles.length} immeuble(s) · ${db.logements.length} logement(s) · ${db.locataires.length} locataire(s) · ${db.paiements.length} paiement(s) · ${db.depenses.length} dépense(s) · ${db.incidents.length} incident(s)</p></div>`;
 }
 
-const PAGES={dash:pageDash,immeubles:pageImmeubles,locataires:pageLocataires,fiche:pageFiche,loyers:pageLoyers,depenses:pageDepenses,incidents:pageIncidents,rapports:pageRapports,parametres:pageParametres,relances:pageRelances,caisse:pageCaisse,journal:pageJournal};
+const PAGES={dash:pageDash,immeubles:pageImmeubles,locataires:pageLocataires,fiche:pageFiche,loyers:pageLoyers,depenses:pageDepenses,incidents:pageIncidents,rapports:pageRapports,parametres:pageParametres,relances:pageRelances,caisse:pageCaisse,journal:()=>CLOUD?pageJournalCloud():pageJournal(),plateforme:pagePlateforme};
 function render(){
   PIDX=null;
   if(comptes()&&!isAdmin()&&state.page==='journal')state.page='dash';
   document.querySelectorAll('nav [data-id=journal]').forEach(b=>b.classList.toggle('hidden',!comptes()||!isAdmin()));
   document.querySelectorAll('nav [data-id=caisse]').forEach(b=>b.classList.toggle('hidden',!comptes()));
+  document.querySelectorAll('nav [data-id=plateforme]').forEach(b=>b.classList.toggle('hidden',!(CLOUD&&PROFILE?.role==='plateforme')));
+  if(state.page==='plateforme'&&!(CLOUD&&PROFILE?.role==='plateforme'))state.page='dash';
   const w=document.getElementById('who'),u=me();
   if(w){w.classList.toggle('hidden',!(comptes()&&u&&connecte()));if(u)w.innerHTML=`${u.role==='admin'?'👑':'👤'} ${esc(u.nom)} <small>${ROLE[u.role]}</small>`;}
   const lb=document.getElementById('lockBtn');if(lb)lb.textContent=comptes()?'⏻ Se déconnecter':'🔒';
@@ -1079,12 +1092,12 @@ A.quitterDemo=async()=>{
 A.reset=async()=>{
   if(db._demo)return A.quitterDemo();
   if(!await ask('Effacer TOUTES les données ? Pensez à exporter une sauvegarde avant.'))return;
-  db=emptyDb();loadLogo();ADMKEY=null;state.uid=null;try{sessionStorage.removeItem(KEY+'_k');}catch(e){}state.imm='all';state.page='dash';save();closeModal();render();
+  db=emptyDb();loadLogo();if(!CLOUD){ADMKEY=null;state.uid=null;try{sessionStorage.removeItem(KEY+'_k');}catch(e){}}state.imm='all';state.page='dash';save();closeModal();render();
 };
 function importFile(f){
   const r=new FileReader();
   r.onload=()=>{
-    try{const d=JSON.parse(r.result);if(!Array.isArray(d.logements)||!Array.isArray(d.baux))throw new Error();db=migrate(d);loadLogo();if(comptes()&&!keyOk(ADMKEY)){ADMKEY=null;state.uid=null;try{sessionStorage.removeItem(KEY+'_k');}catch(e){}}else if(comptes())log('donnees','Import d’une sauvegarde');state.imm='all';save();render();toast('Sauvegarde importée ✅');}
+    try{const d=JSON.parse(r.result);if(!Array.isArray(d.logements)||!Array.isArray(d.baux))throw new Error();if(CLOUD){delete d.settings?.users;delete d.settings?.keyCheck;delete d._demo;delete d._reel;}db=migrate(d);loadLogo();if(!CLOUD&&comptes()&&!keyOk(ADMKEY)){ADMKEY=null;state.uid=null;try{sessionStorage.removeItem(KEY+'_k');}catch(e){}}else if(comptes())log('donnees','Import d’une sauvegarde');state.imm='all';save();render();toast('Sauvegarde importée ✅');}
     catch(e){toast('Fichier de sauvegarde invalide.');}
   };
   r.readAsText(f);
@@ -1157,12 +1170,12 @@ const CAUSES=['Usure normale','Panne / vétusté','Dégradation par le locataire
 const CHARGES=['Propriétaire','Locataire','Partagé (50/50)'];
 const PJT={avant:'📷 Photo avant',apres:'✅ Photo après',facture:'🧾 Reçu / facture'};
 let PJ=[],VIEWPJ=[];
-function pjHtml(){VIEWPJ=PJ;return PJ.length?`<div class="pj">${PJ.map((p,k)=>`<div class="pj-i"><img src="${p.data}" data-a="voirImg" data-id="${k}" alt=""><span>${PJT[p.type]||''}</span><button type="button" class="pj-x" data-a="pjDel" data-id="${k}" title="Retirer">✕</button></div>`).join('')}</div>`:'<p class="muted small">Aucune pièce jointe pour l’instant.</p>';}
+function pjHtml(){VIEWPJ=PJ;return PJ.length?`<div class="pj">${PJ.map((p,k)=>`<div class="pj-i"><img src="${pieceSrc(p)}" data-pid="${p.id}" data-a="voirImg" data-id="${k}" alt=""><span>${PJT[p.type]||''}</span><button type="button" class="pj-x" data-a="pjDel" data-id="${k}" title="Retirer">✕</button></div>`).join('')}</div>`:'<p class="muted small">Aucune pièce jointe pour l’instant.</p>';}
 function pjInputs(types,aide){return `<div class="btns">${types.map(t=>`<label class="btn sm ghost" style="position:relative;margin:0">${PJT[t]}<input type="file" accept="image/*" multiple class="hidden-input pjFile" data-type="${t}"></label>`).join('')}</div><div id="pjList">${pjHtml()}</div><p class="muted small">${aide||'Les photos sont compressées automatiquement.'}</p>`;}
 function compressImg(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1000/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(i,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',0.6));};i.onerror=rej;i.src=r.result;};r.onerror=rej;r.readAsDataURL(f);});}
 async function addPJ(files,type){for(const f of files){if(!/^image\//.test(f.type)){toast('Seules les images sont acceptées : prenez le reçu en photo');continue;}try{PJ.push({id:uid(),type,data:await compressImg(f),date:today()});}catch(e){toast('Image illisible');}}const l=document.getElementById('pjList');if(l)l.innerHTML=pjHtml();}
 A.pjDel=k=>{PJ.splice(Number(k),1);document.getElementById('pjList').innerHTML=pjHtml();};
-A.voirImg=k=>{const p=VIEWPJ[Number(k)];if(!p)return;document.getElementById('lbImg').src=p.data;document.getElementById('lbCap').textContent=(PJT[p.type]||'')+(p.date?' · '+fmtDate(p.date):'');document.getElementById('lb').classList.remove('hidden');};
+A.voirImg=k=>{const p=VIEWPJ[Number(k)];if(!p)return;const im=document.getElementById('lbImg');im.src=pieceSrc(p);im.dataset.pid=p.id;document.getElementById('lbCap').textContent=(PJT[p.type]||'')+(p.date?' · '+fmtDate(p.date):'');document.getElementById('lb').classList.remove('hidden');};
 A.lbClose=()=>document.getElementById('lb').classList.add('hidden');
 
 const matTot=m=>(Number(m.qte)||1)*(Number(m.pu)||0);
@@ -1227,7 +1240,7 @@ A.voirInc=id=>{
     <div class="row"><span>Main d’œuvre${i.artisan?' — '+esc(i.artisan)+(i.artisanTel?' ('+esc(i.artisanTel)+')':''):''}</span><b>${fcfa(i.mo||0)}</b></div>
     <div class="row recu-t" style="border-top:1px solid #e5e7eb;margin-top:6px;padding-top:6px"><span>Coût total</span><span>${fcfa(i.cout||0)}</span></div>
     <h4>📎 Preuves (${VIEWPJ.length})</h4>
-    ${VIEWPJ.length?`<div class="pj">${VIEWPJ.map((p,k)=>`<div class="pj-i"><img src="${p.data}" data-a="voirImg" data-id="${k}" alt=""><span>${PJT[p.type]||''}</span></div>`).join('')}</div>`:'<p class="muted small">Aucune photo ni reçu. Ajoutez-les avec « Modifier ».</p>'}
+    ${VIEWPJ.length?`<div class="pj">${VIEWPJ.map((p,k)=>`<div class="pj-i"><img src="${pieceSrc(p)}" data-pid="${p.id}" data-a="voirImg" data-id="${k}" alt=""><span>${PJT[p.type]||''}</span></div>`).join('')}</div>`:'<p class="muted small">Aucune photo ni reçu. Ajoutez-les avec « Modifier ».</p>'}
     <div class="btns col">
       <button type="button" class="primary" data-a="ficheInc" data-id="${i.id}">🖨️ Télécharger la fiche de preuve (imprimable)</button>
       ${part&&!i.rembourse&&t?.tel?`<a class="btn wa" href="${esc(waLink(t.tel,wmsg))}" target="_blank" rel="noopener">Demander le remboursement à ${esc(t.nom)}</a>`:''}
@@ -1235,10 +1248,11 @@ A.voirInc=id=>{
       <button type="button" class="ghost" data-a="closeModal">Fermer</button>
     </div>`,null);
 };
-A.ficheInc=id=>{
+A.ficheInc=async id=>{
+  const i0=db.incidents.find(x=>x.id===id);if(CLOUD&&i0)await Promise.all((i0.pieces||[]).filter(p=>!p.data&&!PCACHE[p.id]).map(p=>fetchPiece(p.id)));
   const i=db.incidents.find(x=>x.id===id),l=logement(i.logementId),im=imm(l?.immeubleId)||{},b=db.baux.filter(x=>x.logementId===i.logementId&&x.debut<=i.date&&(!x.fin||x.fin>=i.date)).slice(-1)[0],t=b?locataire(b.locataireId):null,part=chargeLoc(i);
   const ph=ty=>(i.pieces||[]).filter(p=>p.type===ty);
-  const gal=(ty,tit)=>ph(ty).length?`<h2>${tit} (${ph(ty).length})</h2><div class="gal">${ph(ty).map(p=>`<figure><img src="${p.data}"><figcaption>${fmtDate(p.date)}</figcaption></figure>`).join('')}</div>`:'';
+  const gal=(ty,tit)=>ph(ty).length?`<h2>${tit} (${ph(ty).length})</h2><div class="gal">${ph(ty).map(p=>`<figure><img src="${pieceSrc(p)}"><figcaption>${fmtDate(p.date)}</figcaption></figure>`).join('')}</div>`:'';
   const html=docHtml(`Fiche de réparation — ${i.titre}`,`${brandHtml()}<h1>FICHE DE RÉPARATION</h1>
 <p><b>${esc(i.titre)}</b><br>${esc(im.nom||'')} — logement ${esc(l?.nom||'')} (${esc(l?.type||'')})${t?'<br>Locataire : '+esc(t.nom):''}<br>Constat le ${fmtDate(i.date)}${i.resolu?' · Réparé le '+fmtDate(i.resolu):''} · Statut : ${esc(i.statut)}</p>
 <h2>Motif</h2><table><tr><td>Cause</td><td><b>${esc(i.cause||'—')}</b></td></tr><tr><td>À la charge de</td><td><b>${esc(i.charge||'Propriétaire')}</b>${part?` — part du locataire : <b>${fcfa(part)}</b>${i.rembourse?' (remboursée)':' (à récupérer)'}`:''}</td></tr>${i.description?`<tr><td>Constat</td><td>${esc(i.description).replace(/\n/g,'<br>')}</td></tr>`:''}</table>
@@ -1252,7 +1266,7 @@ ${gal('avant','Photos avant réparation')}${gal('apres','Photos après réparati
   saveFile(`reparation-${(l?.nom||'logement').replace(/\s+/g,'-')}-${i.date}.html`,html,'text/html');
 };
 A.voirDep=id=>{const d=db.depenses.find(x=>x.id===id);if(!d)return;if(d.incidentId&&db.incidents.some(x=>x.id===d.incidentId))return A.voirInc(d.incidentId);VIEWPJ=d.pieces||[];
-  modal('Justificatifs de la dépense',`<p><b>${esc(d.libelle)}</b><br><span class="muted">${fmtDate(d.date)} · ${esc(d.cat)}${d.fournisseur?' · '+esc(d.fournisseur):''} · ${fcfa(d.montant)}</span></p>${VIEWPJ.length?`<div class="pj">${VIEWPJ.map((p,k)=>`<div class="pj-i"><img src="${p.data}" data-a="voirImg" data-id="${k}" alt=""><span>${PJT[p.type]||''}</span></div>`).join('')}</div>`:'<p class="muted">Aucun justificatif.</p>'}<div class="btns"><button type="button" class="ghost" data-a="editDepense" data-id="${d.id}">Modifier / ajouter un reçu</button><button type="button" class="ghost" data-a="closeModal">Fermer</button></div>`,null);};
+  modal('Justificatifs de la dépense',`<p><b>${esc(d.libelle)}</b><br><span class="muted">${fmtDate(d.date)} · ${esc(d.cat)}${d.fournisseur?' · '+esc(d.fournisseur):''} · ${fcfa(d.montant)}</span></p>${VIEWPJ.length?`<div class="pj">${VIEWPJ.map((p,k)=>`<div class="pj-i"><img src="${pieceSrc(p)}" data-pid="${p.id}" data-a="voirImg" data-id="${k}" alt=""><span>${PJT[p.type]||''}</span></div>`).join('')}</div>`:'<p class="muted">Aucun justificatif.</p>'}<div class="btns"><button type="button" class="ghost" data-a="editDepense" data-id="${d.id}">Modifier / ajouter un reçu</button><button type="button" class="ghost" data-a="closeModal">Fermer</button></div>`,null);};
 const nbPJ=x=>(x.pieces||[]).length||(x.incidentId?(db.incidents.find(i=>i.id===x.incidentId)?.pieces||[]).length:0);
 
 /* ===================== v4 : agence, contrat, relances, relevé ===================== */
@@ -1435,16 +1449,16 @@ const randCode=n=>{const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',r=crypto.getRandom
 
 /* --- Comptes & session --- */
 let ADMKEY=null,LAST_ACT=Date.now();
-const USERS=()=>db.settings.users||[];
-const comptes=()=>USERS().length>0;
-const me=()=>USERS().find(u=>u.id===state.uid&&u.actif!==false);
+const USERS=()=>CLOUD?MEMBERS:(db.settings.users||[]);
+const comptes=()=>CLOUD||USERS().length>0;
+const me=()=>CLOUD?PROFILE:USERS().find(u=>u.id===state.uid&&u.actif!==false);
 const adminU=()=>USERS().find(u=>u.role==='admin');
 const keyOk=k=>!!k&&!!db.settings.keyCheck&&hmacHex(k,'gestimmo-keycheck')===db.settings.keyCheck;
-const isAdmin=()=>!comptes()||(me()?.role==='admin'&&!!ADMKEY);
-const connecte=()=>!comptes()||(!!me()&&(me().role!=='admin'||!!ADMKEY));
+const isAdmin=()=>CLOUD?(!!PROFILE&&['admin','plateforme'].includes(PROFILE.role)):(!comptes()||(me()?.role==='admin'&&!!ADMKEY));
+const connecte=()=>CLOUD?(!!PROFILE&&ORG_OK&&LOADED):(!comptes()||(!!me()&&(me().role!=='admin'||!!ADMKEY)));
 const nomU=id=>USERS().find(u=>u.id===id)?.nom||'';
-const ROLE={admin:'Super admin',gestionnaire:'Gestionnaire'};
-const compromis=()=>!comptes()&&((db.journal||[]).length>0);
+const ROLE={admin:'Super admin',gestionnaire:'Gestionnaire',plateforme:'Propriétaire GestImmo'};
+const compromis=()=>!CLOUD&&!comptes()&&((db.journal||[]).length>0);
 try{const k=sessionStorage.getItem(KEY+'_k');if(k){const kb=unhex(k);if(keyOk(kb))ADMKEY=kb;else sessionStorage.removeItem(KEY+'_k');}}catch(e){}
 
 /* --- Journal chaîné + points de contrôle signés --- */
@@ -1454,9 +1468,11 @@ function log(a,d,m=0,r='',n=''){
   db.journal=db.journal||[];
   const prev=db.journal.length?db.journal[db.journal.length-1].h:'0';
   const e={i:db.journal.length,t:new Date().toISOString(),u:state.uid||'',a,d,m:Number(m)||0,r,n};
+  if(CLOUD){e.id=uid();db.journal.push(e);return;}
   e.h=sha(prev+'|'+jPayload(e));db.journal.push(e);
 }
 function signer(){
+  if(CLOUD)return;
   if(!ADMKEY||!(db.journal||[]).length)return;
   db.checkpoints=db.checkpoints||[];
   const last=db.journal[db.journal.length-1],cp=db.checkpoints[db.checkpoints.length-1];
@@ -1464,6 +1480,7 @@ function signer(){
   db.checkpoints.push({i:last.i,h:last.h,t:new Date().toISOString(),sig:hmacHex(ADMKEY,last.i+'|'+last.h)});
 }
 function controle(){
+  if(CLOUD)return AUDIT.filter(a=>['suppression','modification'].includes(a.kind)).map(a=>['neg',`${a.kind==='suppression'?'Paiement supprimé':'Montant modifié'} : reçu ${a.num||'?'} (${fcfa(a.montant)}) par ${a.qui||'?'}`]);
   const out=[],J=db.journal||[],CP=db.checkpoints||[];
   if(compromis()){out.push(['neg','Les comptes ont été supprimés des données alors qu’un journal existe : tentative de contournement.']);return out;}
   if(!comptes())return out;
@@ -1493,6 +1510,7 @@ function loginLibre(l,exceptId){return !USERS().some(u=>u.id!==exceptId&&u.login
 function suggestLogin(nom){let b=normLogin(nom.split(/\s+/)[0])||'user',l=b,k=2;while(!loginLibre(l))l=b+(k++);return l;}
 let ESSAIS=0,BLOQUE=0;
 function renderLock(){
+  if(CLOUD)return renderAuth();
   const box=document.getElementById('lockForm');
   if(compromis()){box.innerHTML=`<img src="${MARK}" width="64" height="64" alt="" style="display:block;margin:0 auto 8px"><h2 style="margin:0">Accès bloqué</h2><p class="neg">Les données de sécurité ont été altérées (comptes supprimés). Seul le propriétaire peut restaurer une sauvegarde.</p><label class="btn primary" style="position:relative;display:block">📥 Importer une sauvegarde du propriétaire<input type="file" id="importFile" accept="application/json,.json" class="hidden-input"></label>`;return;}
   if(!comptes()){box.innerHTML=`<img src="${MARK}" width="64" height="64" alt="" style="display:block;margin:0 auto 8px"><h2 style="margin:0">Gest<span style="color:#d98a0b">Immo</span></h2><p class="muted" style="margin-top:2px">🔒 Application verrouillée</p><p class="muted">Entrez votre code PIN</p><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8"><button class="primary" style="width:100%;margin-top:12px">Déverrouiller</button>`;return;}
@@ -1532,8 +1550,8 @@ async function secours(code,pw){
   try{const k=await unwrapKey(u.wrapR,code.trim().toUpperCase(),u.salt);if(!keyOk(k))throw 0;u.wrapP=await wrapKey(k,pw,u.salt);ADMKEY=k;state.uid=u.id;try{sessionStorage.setItem(KEY+'_k',hexb(k));}catch(e){}log('secours','Mot de passe super admin réinitialisé avec le code de secours');signer();LOGIN.mode='login';save();saveUi();render();toast('Mot de passe changé ✅');}
   catch(e){toast('Code de secours incorrect');}
 }
-A.logout=()=>{if(!comptes()){state.unlocked=false;saveUi();checkLock();return;}const u=me();if(u){log('deconnexion',u.nom);if(u.role==='admin')signer();}ADMKEY=null;state.uid=null;LOGIN={uid:null,mode:'login',last:u?.login||''};try{sessionStorage.removeItem(KEY+'_k');}catch(e){}closeModal();save();saveUi();render();toast('Vous êtes déconnecté 👋');};
-setInterval(()=>{if(comptes()&&me()&&Date.now()-LAST_ACT>15*60000){A.logout();toast('Déconnecté après 15 min d’inactivité');}},30000);
+A.logout=()=>{if(CLOUD)return cloudLogout();if(!comptes()){state.unlocked=false;saveUi();checkLock();return;}const u=me();if(u){log('deconnexion',u.nom);if(u.role==='admin')signer();}ADMKEY=null;state.uid=null;LOGIN={uid:null,mode:'login',last:u?.login||''};try{sessionStorage.removeItem(KEY+'_k');}catch(e){}closeModal();save();saveUi();render();toast('Vous êtes déconnecté 👋');};
+setInterval(()=>{if(comptes()&&me()&&Date.now()-LAST_ACT>(CLOUD?30:15)*60000){A.logout();toast('Déconnecté après 15 min d’inactivité');}},30000);
 ['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{LAST_ACT=Date.now();},{passive:true}));
 
 /* --- Gestion des comptes (super admin) --- */
@@ -1580,7 +1598,7 @@ function cardComptes(){
 }
 
 /* --- Permissions --- */
-const ADMIN_ONLY=new Set(['editUser','delRecu','annulerRecu','delLocataire','delLogement','delImmeuble','addImmeuble','editImmeuble','addLogement','editLogement','editBail','sortie','editDepense','delDepense','delIncident','validerDep','refuserDep','demo','reset','setPin','delPin','editAgence','delLogo','dlReleve','addGest','pinGest','toggleGest','pwAdmin','modesCaisse','confirmerRemise','contesterRemise','remiseAdmin','creerAdmin']);
+const ADMIN_ONLY=new Set(['nouveauCode','toggleMembre','resetMdp','editUser','delRecu','annulerRecu','delLocataire','delLogement','delImmeuble','addImmeuble','editImmeuble','addLogement','editLogement','editBail','sortie','editDepense','delDepense','delIncident','validerDep','refuserDep','demo','reset','setPin','delPin','editAgence','delLogo','dlReleve','addGest','pinGest','toggleGest','pwAdmin','modesCaisse','confirmerRemise','contesterRemise','remiseAdmin','creerAdmin']);
 const ADMIN_PAGES=new Set(['journal','parametres','immeubles']);
 function stripAdmin(root){if(isAdmin())return;root.querySelectorAll('[data-a]').forEach(el=>{if(ADMIN_ONLY.has(el.dataset.a))el.remove();});root.querySelectorAll('#importFile,#logoFile,#autoRecu').forEach(el=>{(el.closest('label')||el).remove();});}
 
@@ -1629,6 +1647,255 @@ function pageJournal(){
   <div class="row"><h3>Historique des actions</h3><select id="jfSel" style="width:auto"><option value="">Tout le monde</option>${USERS().map(u=>`<option value="${u.id}" ${f===u.id?'selected':''}>${esc(u.nom)}</option>`).join('')}</select></div>
   ${tbl([['Date & heure'],['Qui'],['Action'],['Détail'],['Montant','n']],L.slice(0,300).map(e=>[`${fmtDate(e.t.slice(0,10))} ${e.t.slice(11,16)}`,esc(nomU(e.u)||'—'),JLBL[e.a]||esc(e.a),esc(e.d),e.m?fcfa(e.m):'']),'Aucune action enregistrée.')}`;
 }
+/* ===================== Mode en ligne : comptes, synchronisation, plateforme ===================== */
+let SB=null,PROFILE=null,ORG=null,ORG_OK=false,PLAT={},MEMBERS=[],VERSION=0,BASE=null,LOADED=false,PUSHING=false,CHG=0,AUDIT=[],AUTH={mode:'loading'},PLAT_ORGS=null;
+const PCACHE={},PFETCH={};
+const DOMAIN='gestimmo.app';
+const clone=o=>JSON.parse(JSON.stringify(o));
+const cloudErr=e=>{const m=String(e?.message||e||'');if(/Invalid login/i.test(m))return 'Nom d’utilisateur ou mot de passe incorrect';if(/already registered|already exists|duplicate key.*username/i.test(m))return 'Ce nom d’utilisateur est déjà pris';if(/Failed to fetch|NetworkError|network/i.test(m))return 'Pas de connexion internet';if(/Password should be at least/i.test(m))return 'Mot de passe : 6 caractères minimum';return m.replace(/^.*?ERROR:\s*/,'');};
+function setSync(t,cls){const el=document.getElementById('sync');if(!el)return;el.textContent=t;el.className='sync '+(cls||'');el.classList.toggle('hidden',!CLOUD||!PROFILE);}
+
+/* --- Pièces jointes (photos) stockées à part --- */
+const PH_IMG="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"><rect width="4" height="3" fill="#e5e7eb"/></svg>');
+function pieceSrc(p){if(p.data)return p.data;if(PCACHE[p.id])return PCACHE[p.id];if(CLOUD)fetchPiece(p.id);return PH_IMG;}
+async function fetchPiece(id){if(!SB||PCACHE[id])return PCACHE[id];if(PFETCH[id])return PFETCH[id];
+  PFETCH[id]=(async()=>{const {data,error}=await SB.from('pieces').select('data').eq('id',id).maybeSingle();if(!error&&data){PCACHE[id]=data.data;document.querySelectorAll(`img[data-pid="${id}"]`).forEach(i=>i.src=data.data);}delete PFETCH[id];return PCACHE[id];})();return PFETCH[id];}
+const allPieces=d=>[...(d.incidents||[]).flatMap(i=>i.pieces||[]),...(d.depenses||[]).flatMap(x=>x.pieces||[])];
+async function uploadPieces(){for(const p of allPieces(db)){if(p.data&&!p.up){const {error}=await SB.from('pieces').insert({id:p.id,org_id:ORG.id,data:p.data});if(error&&!/duplicate/i.test(error.message))throw error;p.up=true;PCACHE[p.id]=p.data;}}}
+function payload(){const d=clone(db);delete d._ts;delete d._demo;delete d._reel;allPieces(d).forEach(p=>{delete p.data;});return d;}
+
+/* --- Fusion à 3 voies (deux appareils qui travaillent en même temps) --- */
+const COLS=['immeubles','logements','locataires','baux','paiements','depenses','incidents','remises','annules','journal'];
+const rid=(x,k)=>x.id||('k'+k+'|'+(x.t||'')+'|'+(x.i??''));
+function merge3(base,loc,rem){
+  const out=clone(rem),J=JSON.stringify;
+  COLS.forEach(c=>{
+    const B=new Map((base?.[c]||[]).map((x,k)=>[rid(x,k),x])),L=new Map((loc[c]||[]).map((x,k)=>[rid(x,k),x])),R=new Map((rem[c]||[]).map((x,k)=>[rid(x,k),x]));
+    const res=[];const ids=new Set([...R.keys(),...L.keys()]);
+    ids.forEach(id=>{const b=B.get(id),l=L.get(id),r=R.get(id);
+      if(l&&r)res.push(b&&J(l)===J(b)?r:l);
+      else if(l&&!r){if(!b||J(l)!==J(b))res.push(l);}
+      else if(r&&!l){if(!b||J(r)!==J(b))res.push(r);}});
+    out[c]=res;
+  });
+  const bs=base?.settings||{},ls=loc.settings||{},rs=rem.settings||{};out.settings={...rs};
+  Object.keys(ls).forEach(k=>{if(J(ls[k])!==J(bs[k]))out.settings[k]=ls[k];});
+  out.journal=(out.journal||[]).sort((a,b)=>String(a.t).localeCompare(String(b.t)));
+  // Numéros de reçu en double (deux appareils hors ligne) : renuméroter les reçus locaux
+  const byNum=new Map();(out.paiements||[]).forEach(p=>{if(!p.num)return;const s=byNum.get(p.num)||new Set();s.add(p.recu||p.id);byNum.set(p.num,s);});
+  const yr=today().slice(0,4),maxN=Math.max(Number(out.settings.seq)||0,...(out.paiements||[]).filter(p=>(p.num||'').startsWith(yr)).map(p=>Number(p.num.split('-')[1])||0));
+  out.settings.seq=maxN;
+  const remR=new Set((rem.paiements||[]).map(p=>p.recu||p.id));
+  byNum.forEach((s,num)=>{if(s.size<2)return;[...s].filter(r=>!remR.has(r)).forEach(r=>{out.settings.seq++;const nn=`${yr}-${String(out.settings.seq).padStart(4,'0')}`;out.paiements.forEach(p=>{if((p.recu||p.id)===r)p.num=nn;});});});
+  return out;
+}
+
+/* --- Synchronisation --- */
+const cacheKey=()=>KEY+'_org_'+(ORG?.id||'');
+function cacheLocal(){try{localStorage.setItem(cacheKey(),JSON.stringify({data:db,base:BASE,version:VERSION}));}catch(e){}}
+let pushTimer=null;
+function schedulePush(){if(!CLOUD||!PROFILE||!ORG_OK||!LOADED)return;CHG++;cacheLocal();setSync('⏳ Enregistrement…','wait');clearTimeout(pushTimer);pushTimer=setTimeout(pushNow,1200);}
+async function pushNow(){
+  clearTimeout(pushTimer);pushTimer=null;
+  if(PUSHING){pushTimer=setTimeout(pushNow,800);return;}
+  PUSHING=true;const c0=CHG;
+  try{
+    for(let essai=0;essai<4;essai++){
+      await uploadPieces();
+      const pl=payload();
+      const {data,error}=await SB.rpc('save_data',{p_data:pl,p_version:VERSION});
+      if(!error){VERSION=data;BASE=pl;cacheLocal();break;}
+      if(/conflit/i.test(error.message)){const r=await SB.rpc('get_data');if(r.error)throw r.error;const rem=r.data.data||{};db=migrate(clone(merge3(BASE||{},db,rem)));BASE=clone(rem);VERSION=r.data.version;PIDX=null;continue;}
+      if(/Interdit|Accès refusé|Abonnement/i.test(error.message)){toast('⛔ '+cloudErr(error));await reloadRemote();break;}
+      throw error;
+    }
+    setSync(CHG===c0?'☁️ Synchronisé':'⏳ Enregistrement…',CHG===c0?'ok':'wait');
+    if(document.getElementById('modal').classList.contains('hidden'))render();
+  }catch(e){setSync('📴 Hors ligne — sera envoyé dès le retour du réseau','off');pushTimer=setTimeout(pushNow,15000);PUSHING=false;return;}
+  PUSHING=false;
+  if(CHG!==c0&&!pushTimer)pushTimer=setTimeout(pushNow,300);
+}
+async function reloadRemote(){const r=await SB.rpc('get_data');if(r.error)throw r.error;const rem=r.data.data||{};db=migrate(clone(rem));BASE=clone(rem);VERSION=r.data.version;PIDX=null;LOADED=true;cacheLocal();if(document.getElementById('modal').classList.contains('hidden'))render();}
+async function poll(){
+  if(!CLOUD||!PROFILE||!ORG_OK||!LOADED||PUSHING||pushTimer)return;
+  try{
+    const me=await SB.rpc('me');
+    if(!me.error&&me.data){ORG={...ORG,...me.data.org};PROFILE={...PROFILE,...me.data.profile,login:me.data.profile.username};if(!me.data.ok){ORG_OK=false;AUTH={mode:'attente'};render();renderLock();return;}}
+    if(isAdmin())refreshTeam();
+    const {data,error}=await SB.rpc('get_version');if(error)throw error;
+    if(data>VERSION&&!PUSHING){await reloadRemote();setSync('☁️ Synchronisé','ok');}
+    else setSync('☁️ Synchronisé','ok');
+  }catch(e){setSync('📴 Hors ligne','off');}
+}
+setInterval(()=>{if(document.visibilityState==='visible')poll();},15000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')poll();});
+window.addEventListener('online',()=>{if(CLOUD&&PROFILE)pushNow();});
+
+/* --- Session --- */
+async function refreshTeam(){try{const {data}=await SB.rpc('team');MEMBERS=(data||[]).map(u=>({id:u.id,nom:u.nom,login:u.username,tel:u.tel,role:u.role,actif:u.actif}));}catch(e){}}
+async function refreshAudit(){if(!isAdmin())return;try{const {data}=await SB.rpc('audit_list',{p_limit:400});AUDIT=data||[];}catch(e){}}
+async function cloudBoot(){
+  AUTH.mode='loading';renderLock();
+  const {data,error}=await SB.rpc('me');
+  if(error){AUTH={mode:'login',msg:cloudErr(error)};PROFILE=null;renderLock();return;}
+  if(!data){AUTH={mode:'login',msg:'Compte incomplet. Contactez le propriétaire de la plateforme.'};await SB.auth.signOut();renderLock();return;}
+  PROFILE={...data.profile,login:data.profile.username};ORG=data.org;ORG_OK=!!data.ok;PLAT=data.plateforme||{};state.uid=PROFILE.id;LAST_ACT=Date.now();
+  if(!ORG_OK){AUTH={mode:'attente'};render();renderLock();return;}
+  try{const c=JSON.parse(localStorage.getItem(cacheKey())||'null');if(c){db=migrate(c.data);BASE=clone(c.base||{});VERSION=c.version;LOADED=true;render();}}catch(e){}
+  try{
+    const r=await SB.rpc('get_data');if(r.error)throw r.error;
+    const rem=r.data.data||{};
+    if(LOADED&&CHG>0&&BASE){db=migrate(clone(merge3(BASE,db,rem)));}else db=migrate(clone(rem));
+    BASE=clone(rem);VERSION=r.data.version;LOADED=true;PIDX=null;
+  }catch(e){if(!LOADED){AUTH={mode:'login',msg:cloudErr(e)};renderLock();return;}}
+  await refreshTeam();await refreshAudit();
+  log('connexion',`${PROFILE.nom} (${ROLE[PROFILE.role]})`);
+  loadLogo();cacheLocal();state.page=state.page||'dash';render();
+  if(CHG)schedulePush();else{const nvide=(db.journal||[]).length;schedulePush();}
+  setSync('☁️ Synchronisé','ok');
+  const j=ORG.expire_le?jours(ORG.expire_le):null;
+  toast(j!==null&&j<=7?`⚠️ Votre abonnement expire ${j<=0?'aujourd’hui':'dans '+j+' jour(s)'}`:`Bienvenue ${PROFILE.nom} 👋`);
+}
+async function cloudInit(){
+  if(!window.supabase){AUTH={mode:'erreur'};renderLock();return;}
+  SB=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'gestimmo-auth'}});
+  SB.rpc('contact_plateforme').then(r=>{if(r.data)PLAT=r.data;}).catch(()=>{});
+  const {data:{session}}=await SB.auth.getSession();
+  if(session)await cloudBoot();else{AUTH={mode:'login'};renderLock();}
+}
+const emailOf=u=>`${normLogin(u)}@${DOMAIN}`;
+async function cloudLogin(u,p){
+  if(!normLogin(u)||!p)return toast('Entrez votre nom d’utilisateur et votre mot de passe');
+  if(Date.now()<BLOQUE)return toast(`Trop d’essais. Réessayez dans ${Math.ceil((BLOQUE-Date.now())/1000)} s.`);
+  AUTH.last=normLogin(u);busy(true);
+  const {error}=await SB.auth.signInWithPassword({email:emailOf(u),password:p});
+  busy(false);
+  if(error){ESSAIS++;if(ESSAIS>=5)BLOQUE=Date.now()+30000*Math.min(10,ESSAIS-4);AUTH.msg=cloudErr(error);renderLock();return;}
+  ESSAIS=0;AUTH.msg='';await cloudBoot();
+}
+function busy(on){const b=document.querySelector('#lockForm button.primary');if(b){b.disabled=on;if(on){b.dataset.t=b.textContent;b.textContent='Patientez…';}else if(b.dataset.t)b.textContent=b.dataset.t;}}
+async function cloudSignup(f,join){
+  const lg=normLogin(f.login);
+  if(join&&!f.code.trim())return toast('Entrez le code d’invitation');
+  if(!f.nom.trim())return toast('Indiquez votre nom complet');
+  if(lg.length<3)return toast('Nom d’utilisateur : 3 caractères minimum (lettres, chiffres, . _ -)');
+  if(f.p1.length<6)return toast('Mot de passe : 6 caractères minimum');
+  if(f.p1!==f.p2)return toast('Les deux mots de passe ne correspondent pas');
+  busy(true);
+  try{
+    const lib=await SB.rpc('username_libre',{p_username:lg});if(lib.data===false)throw new Error('Ce nom d’utilisateur est déjà pris');
+    const {data,error}=await SB.auth.signUp({email:emailOf(lg),password:f.p1,options:{data:{username:lg,nom:f.nom.trim()}}});
+    if(error)throw error;
+    if(!data.session)throw new Error('Inscription impossible : la confirmation par e-mail est activée sur le serveur.');
+    const r=join?await SB.rpc('join_org',{p_code:f.code,p_username:lg,p_nom:f.nom,p_tel:f.tel}):await SB.rpc('register_owner',{p_username:lg,p_nom:f.nom,p_tel:f.tel,p_agence:f.agence||''});
+    if(r.error){await SB.auth.signOut();throw r.error;}
+    busy(false);AUTH={mode:'loading'};await cloudBoot();
+    if(r.data?.role==='plateforme')setTimeout(()=>toast('👑 Vous êtes le propriétaire de la plateforme GestImmo'),1500);
+  }catch(e){busy(false);AUTH.msg=cloudErr(e);renderLock();}
+}
+async function cloudLogout(){
+  try{if(pushTimer){clearTimeout(pushTimer);pushTimer=null;await pushNow();}}catch(e){}
+  try{await SB.auth.signOut();}catch(e){}
+  PROFILE=null;ORG=null;ORG_OK=false;LOADED=false;MEMBERS=[];AUDIT=[];BASE=null;VERSION=0;CHG=0;state.uid=null;db=emptyDb();PIDX=null;
+  AUTH={mode:'login',last:AUTH.last};closeModal();render();renderLock();toast('Vous êtes déconnecté 👋');
+}
+function waPlat(txt){return PLAT.whatsapp?waLink(PLAT.whatsapp,txt):'';}
+function renderAuth(){
+  const box=document.getElementById('lockForm'),m=AUTH.mode,msg=AUTH.msg?`<div class="alert a-neg" style="text-align:left"><span>⚠️</span><span>${esc(AUTH.msg)}</span></div>`:'';
+  const head=t=>`<img src="${MARK}" width="56" height="56" alt="" style="display:block;margin:0 auto 6px"><h2 style="margin:0">Gest<span style="color:#d98a0b">Immo</span></h2><p class="muted" style="margin:2px 0 12px">${t}</p>`;
+  const F=(l,id,t='text',x='')=>`<label style="text-align:left">${l}<input id="${id}" type="${t}" ${x}></label>`;
+  const link=(t,mode)=>`<button type="button" class="linkbtn small" data-a="authMode" data-id="${mode}">${t}</button>`;
+  if(m==='loading'){box.innerHTML=head('Connexion en cours…')+'<div class="spin"></div>';return;}
+  if(m==='erreur'){box.innerHTML=head('Impossible de charger l’application')+'<p class="neg">Vérifiez votre connexion internet puis réessayez.</p><button class="primary" type="button" onclick="location.reload()">Réessayer</button>';return;}
+  if(m==='attente'){
+    const susp=ORG?.statut==='suspendue',exp=ORG?.statut==='active'&&ORG?.expire_le&&ORG.expire_le<today();
+    const t=susp?'Votre compte est suspendu.':exp?`Votre abonnement a expiré le ${fmtDate(ORG.expire_le)}.`:PROFILE&&PROFILE.actif===false?'Votre accès a été désactivé par votre Super admin.':'Votre compte a bien été créé ✅ Il attend l’activation par l’équipe GestImmo.';
+    const wmsg=`Bonjour, ${susp||exp?'je souhaite réactiver':'je viens de créer'} mon compte GestImmo.\nNom : ${PROFILE?.nom||''}\nUtilisateur : ${PROFILE?.username||''}\nAgence : ${ORG?.nom||''}\nMerci ${susp||exp?'de le réactiver':'de l’activer'}.`;
+    box.innerHTML=head(susp||exp?'Accès suspendu':'Activation en attente')+`<p>${t}</p>${PLAT.message?`<p class="muted small">${esc(PLAT.message)}</p>`:''}
+      ${PLAT.whatsapp?`<a class="btn wa" style="display:block;margin:8px 0" href="${esc(waPlat(wmsg))}" target="_blank" rel="noopener">📲 Contacter GestImmo sur WhatsApp</a>`:''}
+      <button type="button" class="ghost" style="width:100%" data-a="authRefresh">🔄 Vérifier à nouveau</button><button type="button" class="linkbtn small" style="margin-top:10px" data-a="logout">Se déconnecter</button>`;return;}
+  if(m==='signup'){box.innerHTML=head('Créer mon compte propriétaire / agence')+msg+F('Nom complet','suNom','text','autocomplete="name"')+F('Nom d’utilisateur (pour vous connecter)','suLogin','text','autocapitalize="none" autocomplete="username" placeholder="ex : awa"')+F('Téléphone (WhatsApp)','suTel','tel')+F('Nom de votre agence (facultatif)','suAgence')+F('Mot de passe (6 caractères min.)','suP1','password','autocomplete="new-password"')+F('Confirmer le mot de passe','suP2','password','autocomplete="new-password"')+
+    `<button class="primary" style="width:100%;margin-top:4px">Créer mon compte</button><p class="muted small">Votre compte sera activé par l’équipe GestImmo.</p>${link('J’ai déjà un compte → Se connecter','login')}`;return;}
+  if(m==='join'){box.innerHTML=head('Rejoindre une agence (gestionnaire)')+msg+F('Code d’invitation (donné par votre Super admin)','joCode','text','autocapitalize="characters" style="text-transform:uppercase;letter-spacing:3px;text-align:center"')+F('Nom complet','suNom')+F('Nom d’utilisateur','suLogin','text','autocapitalize="none" placeholder="ex : koffi"')+F('Téléphone','suTel','tel')+F('Mot de passe (6 caractères min.)','suP1','password','autocomplete="new-password"')+F('Confirmer le mot de passe','suP2','password','autocomplete="new-password"')+
+    `<button class="primary" style="width:100%;margin-top:4px">Rejoindre l’agence</button>${link('J’ai déjà un compte → Se connecter','login')}`;return;}
+  if(m==='oubli'){box.innerHTML=head('Mot de passe oublié')+`<p class="muted" style="text-align:left">• <b>Gestionnaire</b> : demandez à votre Super admin de vous créer un nouveau mot de passe (Paramètres → Équipe).<br>• <b>Propriétaire / agence</b> : contactez l’équipe GestImmo.</p>${PLAT.whatsapp?`<a class="btn wa" style="display:block;margin:8px 0" href="${esc(waPlat('Bonjour, j’ai oublié mon mot de passe GestImmo. Mon nom d’utilisateur est : '))}" target="_blank" rel="noopener">📲 Contacter GestImmo</a>`:''}${link('← Retour à la connexion','login')}`;return;}
+  box.innerHTML=head('Connectez-vous à votre compte')+msg+F('Nom d’utilisateur','loginIn','text',`autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(AUTH.last||'')}"`)+
+    `<label style="text-align:left">Mot de passe<div class="pw"><input id="pinIn" type="password" autocomplete="current-password"><button type="button" class="ghost sm" data-a="voirMdp" title="Afficher">👁</button></div></label>
+    <button class="primary" style="width:100%;margin-top:4px" id="loginBtn">Se connecter</button>
+    <div class="auth-links">${link('Mot de passe oublié ?','oubli')}</div>
+    <div class="auth-new"><p class="muted small" style="margin:0 0 6px">Pas encore de compte ?</p><button type="button" class="ghost" style="width:100%" data-a="authMode" data-id="signup">🏢 Créer un compte propriétaire / agence</button><button type="button" class="ghost" style="width:100%;margin-top:6px" data-a="authMode" data-id="join">👤 Je suis gestionnaire (code d’invitation)</button></div>`;
+  setTimeout(()=>document.getElementById(AUTH.last?'pinIn':'loginIn')?.focus(),50);
+}
+A.authMode=m=>{AUTH={mode:m,last:AUTH.last};renderLock();};
+A.authRefresh=()=>cloudBoot();
+function cloudSubmit(){
+  const v=id=>document.getElementById(id)?.value||'';
+  if(AUTH.mode==='login')return cloudLogin(v('loginIn'),v('pinIn'));
+  if(AUTH.mode==='signup')return cloudSignup({nom:v('suNom'),login:v('suLogin'),tel:v('suTel'),agence:v('suAgence'),p1:v('suP1'),p2:v('suP2')},false);
+  if(AUTH.mode==='join')return cloudSignup({code:v('joCode'),nom:v('suNom'),login:v('suLogin'),tel:v('suTel'),p1:v('suP1'),p2:v('suP2')},true);
+}
+
+/* --- Équipe (Super admin de l'agence) --- */
+function cardEquipe(){
+  const code=ORG?.code||'';
+  const inv=`Bonjour, voici votre accès à GestImmo pour l’agence ${ORG?.nom||''} :\n1) Ouvrez ${location.origin+location.pathname}\n2) Touchez « Je suis gestionnaire »\n3) Code d’invitation : ${code}`;
+  return `<div class="card"><h3 style="margin-top:0">👥 Équipe & accès — ${esc(ORG?.nom||'')}</h3>
+  <div class="row"><div><p class="muted small" style="margin:0">Code d’invitation pour vos gestionnaires</p><p class="code-secours" style="margin:6px 0;font-size:20px">${esc(code)}</p></div>
+  <div class="btns" style="margin:0"><a class="btn wa sm" href="${esc(waLink('',inv))}" target="_blank" rel="noopener">Envoyer par WhatsApp</a><button class="sm ghost" data-a="copierCode">📋 Copier</button><button class="sm ghost" data-a="nouveauCode">🔄 Nouveau code</button></div></div>
+  ${tbl([['Nom'],['Nom d’utilisateur'],['Rôle'],['Téléphone'],['État'],['','act']],MEMBERS.map(u=>[`<b>${esc(u.nom)}</b>`,`<code>${esc(u.login)}</code>`,`${u.role==='gestionnaire'?'👤':'👑'} ${ROLE[u.role]}`,esc(u.tel||'—'),u.actif===false?'<span class="badge neg">Désactivé</span>':'<span class="badge ok">Actif</span>',
+    u.role==='gestionnaire'?`<button class="sm ghost" data-a="resetMdp" data-id="${u.id}">Nouveau mot de passe</button><button class="sm ${u.actif===false?'':'danger'}" data-a="toggleMembre" data-id="${u.id}">${u.actif===false?'Réactiver':'Désactiver'}</button>`:'']),'Aucun membre.')}
+  <div class="btns"><button class="sm ghost" data-a="modesCaisse">💵 Argent géré par le gestionnaire</button><button class="sm ghost" data-a="goto" data-id="journal">🛡️ Journal serveur</button><button class="sm ghost" data-a="monMdpCloud">🔑 Changer mon mot de passe</button></div>
+  ${ORG?.expire_le?`<p class="muted small">Abonnement valable jusqu’au <b>${fmtDate(ORG.expire_le)}</b>.</p>`:''}</div>`;
+}
+A.copierCode=async()=>{try{await navigator.clipboard.writeText(ORG.code);toast('Code copié ✅');}catch(e){toast('Code : '+ORG.code);}};
+A.nouveauCode=async()=>{if(!await ask('Créer un nouveau code ? L’ancien ne fonctionnera plus.'))return;const {data,error}=await SB.rpc('regen_code');if(error)return toast(cloudErr(error));ORG.code=data;render();toast('Nouveau code créé ✅');};
+A.toggleMembre=async id=>{const u=MEMBERS.find(x=>x.id===id);const {error}=await SB.rpc('set_member',{p_user:id,p_actif:u.actif===false});if(error)return toast(cloudErr(error));await refreshTeam();render();toast(u.actif===false?'Gestionnaire réactivé ✅':'Gestionnaire désactivé');};
+A.resetMdp=id=>{const u=MEMBERS.find(x=>x.id===id)||(PLAT_ORGS||[]).map(o=>o.proprietaire).find(p=>p&&p.id===id);modal(`Nouveau mot de passe — ${u?.nom||''}`,`<label>Nouveau mot de passe (6 caractères min.)<input name="p1" type="text" required minlength="6" autocomplete="new-password"></label><p class="muted small">Communiquez-le à la personne. Elle pourra le changer ensuite.</p>`,
+  d=>{if(d.p1.length<6)fail('6 caractères minimum');(async()=>{const {error}=await SB.rpc('reset_password',{p_user:id,p_new:d.p1});if(error)return toast(cloudErr(error));closeModal();toast('Mot de passe changé ✅');})();return false;});};
+A.monMdpCloud=()=>modal('Changer mon mot de passe',`<label>Nouveau mot de passe (6 caractères min.)<input name="p1" type="password" required minlength="6" autocomplete="new-password"></label><label>Confirmer<input name="p2" type="password" required></label>`,
+  d=>{if(d.p1.length<6)fail('6 caractères minimum');if(d.p1!==d.p2)fail('Les mots de passe ne correspondent pas');(async()=>{const {error}=await SB.auth.updateUser({password:d.p1});if(error)return toast(cloudErr(error));log('comptes','Mot de passe changé par '+PROFILE.nom);save();closeModal();toast('Mot de passe changé ✅');})();return false;});
+
+/* --- Console du propriétaire de la plateforme --- */
+async function loadPlat(){const {data,error}=await SB.rpc('platform_orgs');if(error){toast(cloudErr(error));return;}PLAT_ORGS=data||[];if(state.page==='plateforme')render();}
+function pagePlateforme(){
+  if(PROFILE?.role!=='plateforme')return '<p>Accès réservé.</p>';
+  if(!PLAT_ORGS){loadPlat();return '<h2>👑 Plateforme GestImmo</h2><div class="spin"></div>';}
+  const L=PLAT_ORGS.filter(o=>o.proprietaire?.role!=='plateforme'),f=state.pf||'tous';
+  const exp=o=>o.statut==='active'&&o.expire_le&&o.expire_le<today();
+  const st=o=>exp(o)?'<span class="badge neg">Expiré</span>':o.statut==='active'?'<span class="badge ok">Actif</span>':o.statut==='en_attente'?'<span class="badge warn">En attente</span>':'<span class="badge neg">Suspendu</span>';
+  const V=L.filter(o=>f==='tous'||(f==='attente'&&o.statut==='en_attente')||(f==='actifs'&&o.statut==='active'&&!exp(o))||(f==='bloques'&&(o.statut==='suspendue'||exp(o))));
+  return `<div class="row"><h2>👑 Plateforme GestImmo</h2><button class="sm ghost" data-a="platReload">🔄 Actualiser</button></div>
+  <div class="grid">${kpi('Clients inscrits',String(L.length))}${kpi('En attente d’activation',String(L.filter(o=>o.statut==='en_attente').length),'',L.some(o=>o.statut==='en_attente')?'neg':'')}${kpi('Abonnements actifs',String(L.filter(o=>o.statut==='active'&&!exp(o)).length),'','ok')}</div>
+  <div class="card"><h3 style="margin-top:0">📲 Contact affiché aux nouveaux clients</h3><div class="grid2">${fld('Votre numéro WhatsApp','plWa',PLAT.whatsapp||'','tel',false).replace('name="plWa"','id="plWa"')}${fld('Message (tarifs, conditions…)','plMsg',PLAT.message||'','text',false).replace('name="plMsg"','id="plMsg"')}</div><button class="sm primary" data-a="platSave">Enregistrer</button></div>
+  <div class="seg">${[['tous','Tous'],['attente','En attente'],['actifs','Actifs'],['bloques','Suspendus / expirés']].map(([k,t])=>`<button class="${f===k?'on':''}" data-a="platF" data-id="${k}">${t}</button>`).join('')}</div>
+  ${tbl([['Agence / propriétaire'],['Inscrit le'],['Utilisation'],['Statut'],['Expire le'],['','act']],V.map(o=>{const p=o.proprietaire||{};const msg=`Bonjour ${p.nom||''}, votre compte GestImmo (${o.nom}) est ${o.statut==='active'?'activé ✅':'en attente'}.`;return [
+    `<b>${esc(o.nom)}</b><div class="muted small">${esc(p.nom||'')} · <code>${esc(p.username||'')}</code>${p.tel?' · '+esc(p.tel):''}</div>${o.note?`<div class="muted small">📝 ${esc(o.note)}</div>`:''}`,
+    fmtDate(String(o.created_at).slice(0,10)),`${o.immeubles} imm. · ${o.logements} log. · ${o.locataires} loc. · ${o.membres} compte(s)`,st(o),o.expire_le?fmtDate(o.expire_le)+(o.statut==='active'?` <span class="muted small">(${jours(o.expire_le)} j)</span>`:''):'—',
+    `<button class="sm primary" data-a="platEdit" data-id="${o.id}">${o.statut==='active'?'Gérer':'Activer'}</button>${p.tel?`<a class="btn wa sm" href="${esc(waLink(p.tel,msg))}" target="_blank" rel="noopener">WhatsApp</a>`:''}${p.id?`<button class="sm ghost" data-a="resetMdp" data-id="${p.id}">Mot de passe</button>`:''}`];}),'Aucun client.')}`;
+}
+A.platReload=()=>{PLAT_ORGS=null;render();};
+A.platF=v=>{state.pf=v;render();};
+A.platSave=async()=>{const {error}=await SB.rpc('platform_settings',{p_whatsapp:document.getElementById('plWa').value.trim(),p_message:document.getElementById('plMsg').value.trim()});if(error)return toast(cloudErr(error));PLAT={whatsapp:document.getElementById('plWa').value.trim(),message:document.getElementById('plMsg').value.trim()};toast('Enregistré ✅');};
+A.platEdit=id=>{const o=PLAT_ORGS.find(x=>x.id===id);const addM=n=>{const d=new Date(Math.max(Date.now(),o.expire_le?new Date(o.expire_le+'T00:00:00').getTime():0));d.setMonth(d.getMonth()+n);return d.toISOString().slice(0,10);};
+  modal(`Abonnement — ${o.nom}`,sel('Statut','statut',[['active','✅ Actif'],['en_attente','⏳ En attente'],['suspendue','⛔ Suspendu']],o.statut==='en_attente'?'active':o.statut)+
+  fld('Valable jusqu’au (vide = sans limite)','expire',o.expire_le||addM(1),'date',false)+`<div class="btns" style="margin-top:0">${[1,3,6,12].map(n=>`<button type="button" class="sm ghost" data-a="platExp" data-id="${addM(n)}">+${n} mois</button>`).join('')}<button type="button" class="sm ghost" data-a="platExp" data-id="">Sans limite</button></div>`+
+  fld('Note (paiement reçu, forfait…)','note',o.note||'','text',false),
+  d=>{(async()=>{const {error}=await SB.rpc('platform_set',{p_org:id,p_statut:d.statut,p_expire:d.expire||null,p_note:d.note});if(error)return toast(cloudErr(error));closeModal();PLAT_ORGS=null;render();toast('Abonnement mis à jour ✅');})();return false;},'Enregistrer');};
+A.platExp=v=>{const i=document.querySelector('#mForm [name=expire]');if(i)i.value=v;};
+
+/* --- Journal serveur (Super admin) --- */
+const AKIND={paiement:'💰 Paiement',annulation:'❌ Annulation',suppression:'🚨 Suppression',modification:'🚨 Montant modifié',depense:'🧾 Dépense',depense_modif:'✏️ Dépense modifiée',depense_suppr:'🗑️ Dépense supprimée',membre:'👥 Équipe',inscription:'🆕 Inscription',abonnement:'👑 Abonnement'};
+function pageJournalCloud(){
+  if(!AUDIT.length)refreshAudit().then(()=>{if(state.page==='journal'&&AUDIT.length)render();});
+  const al=AUDIT.filter(a=>['suppression','modification'].includes(a.kind));
+  return `<div class="row"><h2>🛡️ Journal serveur</h2><button class="sm ghost" data-a="auditReload">🔄 Actualiser</button></div>
+  <div class="card"><p class="muted" style="margin-top:0">Ce journal est tenu <b>par le serveur</b> : personne ne peut l’effacer ou le modifier depuis l’application. Le serveur <b>refuse</b> qu’un gestionnaire supprime ou modifie un paiement, supprime une dépense ou change un loyer.</p>
+  ${al.length?al.map(a=>`<div class="alert a-neg"><span>🚨</span><span>${esc(AKIND[a.kind])} — reçu ${esc(a.num||'?')} (${fcfa(a.montant)}) par ${esc(a.qui||'?')} le ${fmtDate(String(a.at).slice(0,10))}</span></div>`).join(''):'<p class="ok-msg">✅ Aucun paiement supprimé ou modifié en dehors d’une annulation officielle.</p>'}</div>
+  ${tbl([['Date & heure'],['Qui'],['Action'],['Détail'],['Montant','n']],AUDIT.map(a=>[`${fmtDate(String(a.at).slice(0,10))} ${String(a.at).slice(11,16)}`,esc(a.qui||'—'),AKIND[a.kind]||esc(a.kind),esc([a.num?'Reçu '+a.num:'',a.detail].filter(Boolean).join(' — ')),a.montant?fcfa(a.montant):'']),'Aucune action enregistrée.')}
+  <h3>Détail des actions dans l’application</h3>
+  ${tbl([['Date & heure'],['Qui'],['Action'],['Détail'],['Montant','n']],(db.journal||[]).slice().reverse().slice(0,200).map(e=>[`${fmtDate(String(e.t).slice(0,10))} ${String(e.t).slice(11,16)}`,esc(nomU(e.u)||'—'),JLBL[e.a]||esc(e.a),esc(e.d),e.m?fcfa(e.m):'']),'—')}`;
+}
+A.auditReload=async()=>{await refreshAudit();render();};
 
 /* ---------- Écouteurs ---------- */
 document.addEventListener('click',e=>{
@@ -1658,6 +1925,7 @@ document.addEventListener('change',e=>{
 document.addEventListener('submit',e=>{
   if(e.target.id!=='lockForm')return;
   e.preventDefault();
+  if(CLOUD){cloudSubmit();return;}
   if(compromis())return;
   if(comptes()){if(LOGIN.mode==='secours')secours(document.getElementById('recIn').value,document.getElementById('newPw').value);else connexion(document.getElementById('loginIn')?.value,document.getElementById('pinIn')?.value);return;}
   const i=document.getElementById('pinIn');
@@ -1667,6 +1935,7 @@ document.addEventListener('submit',e=>{
 window.addEventListener('scroll',()=>document.getElementById('ctip').classList.add('hidden'),{passive:true});
 
 render();
+if(CLOUD)cloudInit();
 </script>
 </body>
 </html>

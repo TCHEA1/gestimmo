@@ -20,6 +20,6 @@ Logiciel de gestion locative pour immeubles et agences, sur téléphone et ordin
 - **Comptes Super admin / Gestionnaire** : permissions, journal d'activité signé, détection des reçus supprimés ou modifiés, caisse du gestionnaire (argent à remettre), dépenses à valider
 - Code PIN, sauvegarde / import des données
 
-Les données sont enregistrées dans le navigateur de l'appareil : exportez régulièrement une sauvegarde (Paramètres).
+**Version en ligne** : comptes (nom d'utilisateur + mot de passe), même compte sur téléphone et ordinateur, données synchronisées dans le cloud (Supabase), activation des agences par le propriétaire de la plateforme, journal anti-fraude tenu par le serveur. Le schéma de la base est dans `supabase/schema.sql`.
 
 © TCHEA KOGUI MARES
