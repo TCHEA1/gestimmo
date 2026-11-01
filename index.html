@@ -129,6 +129,7 @@ table.mini{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}table
 .spin{width:34px;height:34px;border:4px solid #e5e7eb;border-top-color:#0f4c3a;border-radius:50%;margin:16px auto;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
 .auth-links{margin-top:8px}.auth-new{border-top:1px solid #e5e7eb;margin-top:14px;padding-top:12px}
 #lockForm{max-height:94vh;overflow:auto}
+.masse-list{max-height:34vh;overflow:auto;border:1px solid #e5e7eb;border-radius:10px;padding:4px 10px;margin:6px 0}.masse-list .chk{margin:6px 0}
 .hidden-input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
 @media(max-width:959px){
   .rt thead{display:none}
@@ -513,7 +514,7 @@ function listeLocataires(){
   }),'Aucun locataire trouvé.');
 }
 function pageLocataires(){
-  return `<div class="row"><h2>Locataires (${locVisibles().length})</h2><div class="btns" style="margin:0"><button class="sm ghost" data-a="csvLocataires">⬇ Export Excel</button><button class="primary sm" data-a="addLocataire">+ Locataire</button></div></div>
+  return `<div class="row"><h2>Locataires (${locVisibles().length})</h2><div class="btns" style="margin:0"><button class="sm ghost" data-a="bauxMasse">🛠️ Modifier plusieurs baux</button><button class="sm ghost" data-a="csvLocataires">⬇ Export Excel</button><button class="primary sm" data-a="addLocataire">+ Locataire</button></div></div>
   <input id="search" class="search" placeholder="Rechercher un nom ou un numéro…" value="${esc(state.search)}">
   <div id="liste">${listeLocataires()}</div>`;
 }
@@ -1598,7 +1599,7 @@ function cardComptes(){
 }
 
 /* --- Permissions --- */
-const ADMIN_ONLY=new Set(['nouveauCode','toggleMembre','resetMdp','editUser','delRecu','annulerRecu','delLocataire','delLogement','delImmeuble','addImmeuble','editImmeuble','addLogement','editLogement','editBail','sortie','editDepense','delDepense','delIncident','validerDep','refuserDep','demo','reset','setPin','delPin','editAgence','delLogo','dlReleve','addGest','pinGest','toggleGest','pwAdmin','modesCaisse','confirmerRemise','contesterRemise','remiseAdmin','creerAdmin']);
+const ADMIN_ONLY=new Set(['bauxMasse','nouveauCode','toggleMembre','resetMdp','editUser','delRecu','annulerRecu','delLocataire','delLogement','delImmeuble','addImmeuble','editImmeuble','addLogement','editLogement','editBail','sortie','editDepense','delDepense','delIncident','validerDep','refuserDep','demo','reset','setPin','delPin','editAgence','delLogo','dlReleve','addGest','pinGest','toggleGest','pwAdmin','modesCaisse','confirmerRemise','contesterRemise','remiseAdmin','creerAdmin']);
 const ADMIN_PAGES=new Set(['journal','parametres','immeubles']);
 function stripAdmin(root){if(isAdmin())return;root.querySelectorAll('[data-a]').forEach(el=>{if(ADMIN_ONLY.has(el.dataset.a))el.remove();});root.querySelectorAll('#importFile,#logoFile,#autoRecu').forEach(el=>{(el.closest('label')||el).remove();});}
 
@@ -1896,6 +1897,41 @@ function pageJournalCloud(){
   ${tbl([['Date & heure'],['Qui'],['Action'],['Détail'],['Montant','n']],(db.journal||[]).slice().reverse().slice(0,200).map(e=>[`${fmtDate(String(e.t).slice(0,10))} ${String(e.t).slice(11,16)}`,esc(nomU(e.u)||'—'),JLBL[e.a]||esc(e.a),esc(e.d),e.m?fcfa(e.m):'']),'—')}`;
 }
 A.auditReload=async()=>{await refreshAudit();render();};
+/* --- Modifier plusieurs baux en une fois (Super admin) --- */
+A.bauxMasse=()=>{
+  const L=BAUX().filter(b=>!b.fin).sort((a,b)=>logNom(a.logementId).localeCompare(logNom(b.logementId)));
+  if(!L.length)return toast('Aucun locataire en place.');
+  modal('Modifier plusieurs baux',
+    `<p class="muted small">Cochez les locataires concernés. Laissez un champ vide pour ne pas le changer.</p>
+    <div class="masse-list"><label class="chk"><input type="checkbox" id="mxAll" checked> <b>Tout cocher</b></label>${L.map(b=>`<label class="chk"><input type="checkbox" name="b_${b.id}" class="mxB" checked> ${esc(bailNom(b))} <span class="muted small">— ${esc(logNom(b.logementId))} · entrée ${fmtDate(b.debut)} · échéance le ${b.jour}</span></label>`).join('')}</div>`+
+    `<div class="grid2">${fld('Nouvelle date d’entrée','debut','','date',false)}${num('Jour d’échéance (1 à 31)','jour','',false)}</div>`+
+    `<h4>💰 Mois déjà payés</h4><label class="chk"><input type="checkbox" name="payer"> Marquer des mois comme payés (un reçu par locataire)</label>
+    <div class="grid2">${fld('Du mois','du','','month',false)}${fld('Au mois','au','','month',false)}</div>`+
+    sel('Mode de paiement','mode',MODES,'Espèces')+fld('Référence','ref','Régularisation','text',false),
+    d=>{
+      const ids=L.filter(b=>d['b_'+b.id]).map(b=>b.id);
+      if(!ids.length)fail('Cochez au moins un locataire');
+      const jour=d.jour===''?null:Number(d.jour);
+      if(jour!==null&&!(jour>=1&&jour<=31))fail('Le jour d’échéance doit être entre 1 et 31');
+      if(d.payer){if(!d.du||!d.au)fail('Indiquez les mois payés (du… au…)');if(d.au<d.du)fail('Le mois de fin est avant le mois de début');}
+      let nRecus=0,tot=0;
+      ids.forEach(id=>{
+        const b=db.baux.find(x=>x.id===id),av={debut:b.debut,jour:b.jour};
+        if(d.debut){b.debut=d.debut;if(b.finPrevue&&b.finPrevue<=d.debut)b.finPrevue=plusUnAn(d.debut);}
+        if(jour!==null)b.jour=jour;
+        if(d.debut||jour!==null)log('bail',`Bail de ${bailNom(b)} (${logNom(b.logementId)}) : entrée ${fmtDate(av.debut)} → ${fmtDate(b.debut)}, échéance le ${av.jour} → ${b.jour}`,0,b.id);
+        if(d.payer){
+          PIDX=null;
+          const lignes=[];
+          for(let m=d.du<b.debut.slice(0,7)?b.debut.slice(0,7):d.du;m<=d.au;m=shift(m,1)){const r=Math.max(0,montantDu(b,m)-payeBail(b.id,m));if(r>0)lignes.push({m,amt:r});}
+          if(lignes.length){enregistrer(b,lignes,{date:(d.debut||today()),mode:d.mode,ref:d.ref.trim()});nRecus++;tot+=sum(lignes,l=>l.amt);}
+        }
+      });
+      PIDX=null;
+      setTimeout(()=>toast(`✅ ${ids.length} bail(s) mis à jour${nRecus?` · ${nRecus} reçu(s) créés (${fcfa(tot)})`:''}`),80);
+    },'Appliquer');
+  const all=document.getElementById('mxAll');if(all)all.addEventListener('change',()=>document.querySelectorAll('.mxB').forEach(c=>c.checked=all.checked));
+};
 
 /* ---------- Écouteurs ---------- */
 document.addEventListener('click',e=>{
