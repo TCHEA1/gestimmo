@@ -196,6 +196,10 @@ const fcfa=n=>Math.round(Number(n)||0).toString().replace(/\B(?=(\d{3})+(?!\d))/
 const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
 function today(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
 function curMois(){return today().slice(0,7);}
+/* Terme du loyer : 'avance' = on paie le mois en cours (avant le X du mois) ; 'echu' = on paie le mois écoulé (avant le X du mois suivant) */
+function ECHU(){try{return db.settings.terme==='echu';}catch(e){return false;}}
+function moisLoyer(){return ECHU()?shift(curMois(),-1):curMois();}
+function echeanceDe(b,ym){return `${ECHU()?shift(ym,1):ym}-${String(Math.min(28,Number(b.jour)||5)).padStart(2,'0')}`;}
 function shift(ym,n){const [y,m]=ym.split('-').map(Number);const d=new Date(y,m-1+n,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
 const fmtDate=iso=>{if(!iso)return '—';const [y,m,d]=iso.split('-');return `${d}/${m}/${y}`;};
 const moisLabel=ym=>{const [y,m]=ym.split('-');return MOIS[m-1]+' '+y;};
@@ -287,7 +291,7 @@ async function saveFile(name,data,type){
 }
 
 let db=load();
-let state={page:'dash',mois:curMois(),search:'',id:null,imm:'all',annee:curMois().slice(0,4),incF:'ouverts',unlocked:false,uid:null};
+let state={page:'dash',mois:curMois(),moisAuto:true,search:'',id:null,imm:'all',annee:curMois().slice(0,4),incF:'ouverts',unlocked:false,uid:null};
 try{const u=JSON.parse(sessionStorage.getItem(KEY+'_ui'));if(u)Object.assign(state,u);sessionStorage.removeItem(KEY+'_ui');}catch(e){}
 
 /* ---------- Requêtes métier ---------- */
@@ -307,7 +311,7 @@ const PAYS=()=>{const ids=new Set(BAUX().map(b=>b.id));return db.paiements.filte
 function montantDu(b,ym){let l=b.loyer,c=b.charges||0;(b.revisions||[]).forEach(r=>{if(!ym||r.depuis<=ym){l=r.loyer;c=r.charges;}});return Number(l)+Number(c||0);}
 function idx(){if(PIDX)return PIDX;PIDX=new Map();for(const p of db.paiements){const k=p.bailId+'|'+p.mois;PIDX.set(k,(PIDX.get(k)||0)+p.montant);}return PIDX;}
 const payeBail=(id,ym)=>idx().get(id+'|'+ym)||0;
-const echu=(b,ym)=>{const cur=curMois();return ym<cur||(ym===cur&&new Date().getDate()>Number(b.jour||5));};
+const echu=(b,ym)=>{const cur=moisLoyer();return ym<cur||(ym===cur&&new Date().getDate()>Number(b.jour||5));};
 /* Accords de paiement : le locataire paie une partie et promet le reste pour une date */
 const accordDate=(b,ym)=>(b.accords||{})[ym]||'';
 const accordActif=(b,ym)=>{const d=accordDate(b,ym);return !!d&&today()<=d&&payeBail(b.id,ym)<montantDu(b,ym);};
@@ -324,7 +328,7 @@ function accords(B){
   return out.sort((x,y)=>x.d.localeCompare(y.d));
 }
 function moisImpayes(b){
-  const cur=curMois(),end=b.fin&&b.fin.slice(0,7)<cur?b.fin.slice(0,7):cur,out=[];
+  const cur=moisLoyer(),end=b.fin&&b.fin.slice(0,7)<cur?b.fin.slice(0,7):cur,out=[];
   for(let m=b.debut.slice(0,7);m<=end;m=shift(m,1)){
     if(echu(b,m)&&!accordActif(b,m)){const r=Math.max(0,montantDu(b,m)-payeBail(b.id,m));if(r>0)out.push({m,r});}
   }
@@ -547,8 +551,8 @@ function pageFiche(){
   <div class="grid">
     ${kpi('Arriérés',fcfa(arr),'',arr?'neg':'ok')}
     ${kpi('Total payé',fcfa(sum(pays,p=>p.montant)),`${recus(pays).length} reçu(s)`)}
-    ${kpi('Loyer actuel',actif?fcfa(montantDu(actif,curMois())):'—',actif?`Échéance le ${actif.jour} du mois`:'')}
-    ${actif?kpi('Payé jusqu’à',payeJusqua(actif)?moisLabel(payeJusqua(actif)):'—',avance(actif).n?`${avance(actif).n} mois d’avance (${fcfa(avance(actif).tot)})`:'',payeJusqua(actif)&&payeJusqua(actif)>=curMois()?'ok':'neg'):''}
+    ${kpi('Loyer actuel',actif?fcfa(montantDu(actif,curMois())):'—',actif?`Échéance le ${actif.jour} du mois${ECHU()?' suivant':''}`:'')}
+    ${actif?kpi('Payé jusqu’à',payeJusqua(actif)?moisLabel(payeJusqua(actif)):'—',avance(actif).n?`${avance(actif).n} mois d’avance (${fcfa(avance(actif).tot)})`:'',payeJusqua(actif)&&payeJusqua(actif)>=moisLoyer()?'ok':'neg'):''}
   </div>
   ${actif&&sum(reparationsLoc(actif),chargeLoc)?`<div class="alert a-warn">🛠️ Réparations à sa charge non remboursées : <b>${fcfa(sum(reparationsLoc(actif),chargeLoc))}</b> — ${reparationsLoc(actif).map(i=>`<button class="linkbtn" data-a="voirInc" data-id="${i.id}">${esc(i.titre)}</button>`).join(', ')}</div>`:''}
   <h3>Baux (entrées / sorties)</h3>
@@ -652,6 +656,11 @@ function pageParametres(){
       ${AG().commission?`<p class="muted small">Commission de gestion : ${AG().commission} %</p>`:''}
       <div class="btns"><button class="sm primary" data-a="editAgence">Modifier les informations</button><label class="btn sm ghost" style="position:relative;margin:0">🖼️ ${AG().logo?'Changer le logo':'Ajouter un logo'}<input type="file" id="logoFile" accept="image/*" class="hidden-input"></label>${AG().logo?'<button class="sm danger" data-a="delLogo">Retirer le logo</button>':''}</div>
     </div>
+    ${!comptes()||isAdmin()?`<div class="card"><h3 style="margin-top:0">📅 Mois du loyer</h3>
+      <p class="muted small">Quel mois le locataire paie-t-il à l’échéance ?</p>
+      <label class="chk"><input type="radio" name="terme" value="avance" ${ECHU()?'':'checked'}> <span><b>Mois en cours</b> — en début de mois (${moisLabel(curMois()).split(' ')[0]}), il paie <b>${moisLabel(curMois()).split(' ')[0]}</b></span></label>
+      <label class="chk"><input type="radio" name="terme" value="echu" ${ECHU()?'checked':''}> <span><b>Mois écoulé</b> — en début de mois (${moisLabel(curMois()).split(' ')[0]}), il paie <b>${moisLabel(shift(curMois(),-1)).split(' ')[0]}</b></span></label>
+      <p class="muted small">Actuellement, le loyer à encaisser est celui ${deM(moisLoyer())}.</p></div>`:''}
     ${CLOUD?`<div class="card"><h3 style="margin-top:0">📶 Connexion & données mobiles</h3>
       <label class="chk"><input type="checkbox" id="ecoMode" ${ECO()?'checked':''}> Mode économie de données</label>
       <p class="muted small">Normal : vérification des nouveautés toutes les minutes. Économie : toutes les 5 minutes, et les photos ne se chargent que quand vous les touchez. Dans les deux cas, l’application <b>fonctionne sans internet</b> : vos modifications sont gardées sur l’appareil et envoyées automatiquement au retour du réseau.</p>
@@ -679,6 +688,7 @@ function pageParametres(){
 const PAGES={dash:pageDash,immeubles:pageImmeubles,locataires:pageLocataires,fiche:pageFiche,loyers:pageLoyers,depenses:pageDepenses,incidents:pageIncidents,rapports:pageRapports,parametres:pageParametres,relances:pageRelances,caisse:pageCaisse,journal:()=>CLOUD?pageJournalCloud():pageJournal(),plateforme:pagePlateforme};
 function render(){
   PIDX=null;
+  if(state.moisAuto)state.mois=moisLoyer();
   if(comptes()&&!isAdmin()&&state.page==='journal')state.page='dash';
   document.querySelectorAll('nav [data-id=journal]').forEach(b=>b.classList.toggle('hidden',!comptes()||!isAdmin()));
   document.querySelectorAll('nav [data-id=caisse]').forEach(b=>b.classList.toggle('hidden',!comptes()));
@@ -712,7 +722,7 @@ function checkLock(){
 const A={};
 A.goto=id=>{state.page=id;render();window.scrollTo(0,0);};
 A.fiche=id=>{state.page='fiche';state.id=id;render();window.scrollTo(0,0);};
-A.mois=n=>{state.mois=shift(state.mois,Number(n));render();};
+A.mois=n=>{state.mois=shift(state.mois,Number(n));state.moisAuto=state.mois===moisLoyer();render();};
 A.annee=n=>{state.annee=String(Number(state.annee)+Number(n));render();};
 A.incF=v=>{state.incF=v;render();};
 A.closeModal=closeModal;
@@ -841,7 +851,7 @@ A.delLocataire=async id=>{
 /* ---------- Paiements intelligents : arriérés d'abord, puis mois en cours, puis avance ---------- */
 const MAX_AVANCE=36;
 function planPaiement(b,montant){
-  const out=[],cur=curMois(),lim=shift(cur,MAX_AVANCE),fin=b.fin?b.fin.slice(0,7):null;
+  const out=[],cur=moisLoyer(),lim=shift(cur,MAX_AVANCE),fin=b.fin?b.fin.slice(0,7):null;
   let left=montant;
   for(let m=b.debut.slice(0,7);left>0&&m<=lim&&(!fin||m<=fin);m=shift(m,1)){
     const du=montantDu(b,m),r=Math.max(0,du-payeBail(b.id,m));
@@ -853,15 +863,15 @@ function planPaiement(b,montant){
 function montantJusqua(b,ym){let s=0;for(let m=b.debut.slice(0,7);m<=ym;m=shift(m,1))s+=Math.max(0,montantDu(b,m)-payeBail(b.id,m));return s;}
 /* Dernier mois entièrement payé sans trou depuis l'entrée */
 function payeJusqua(b){
-  let last=null;const lim=shift(curMois(),MAX_AVANCE+1),fin=b.fin?b.fin.slice(0,7):null;
+  let last=null;const lim=shift(moisLoyer(),MAX_AVANCE+1),fin=b.fin?b.fin.slice(0,7):null;
   for(let m=b.debut.slice(0,7);m<=lim&&(!fin||m<=fin);m=shift(m,1)){
     if(payeBail(b.id,m)>=montantDu(b,m))last=m;else break;
   }
   return last;
 }
-function avance(b){const cur=curMois(),j=payeJusqua(b);if(!j||j<=cur)return {n:0,tot:0};let n=0,tot=0;for(let m=shift(cur,1);m<=j;m=shift(m,1)){n++;tot+=montantDu(b,m);}return {n,tot};}
+function avance(b){const cur=moisLoyer(),j=payeJusqua(b);if(!j||j<=cur)return {n:0,tot:0};let n=0,tot=0;for(let m=shift(cur,1);m<=j;m=shift(m,1)){n++;tot+=montantDu(b,m);}return {n,tot};}
 function jusquaBadge(b){
-  const j=payeJusqua(b),cur=curMois();
+  const j=payeJusqua(b),cur=moisLoyer();
   if(!j)return '<span class="badge neg">Aucun mois soldé</span>';
   if(j>cur)return `<span class="badge ok">✓ Avance jusqu’à ${moisLabel(j)}</span>`;
   if(j===cur)return `<span class="badge ok">À jour (${moisLabel(j)})</span>`;
@@ -880,13 +890,13 @@ function planHtml(b,montant){
   const {lignes,surplus}=planPaiement(b,montant);
   const last=lignes[lignes.length-1];
   const vis=lignes.length>7?[...lignes.slice(0,3),null,...lignes.slice(-3)]:lignes;
-  return `<div class="plan"><b>Répartition automatique (${lignes.length} mois) :</b>${vis.map(l=>!l?'<div class="muted small">…</div>':`<div class="row"><span>${moisLabel(l.m)}${l.m>curMois()?' <span class="badge ok">avance</span>':l.m<curMois()?' <span class="badge neg">arriéré</span>':''}</span><span>${fcfa(l.amt)}${l.reste?` <span class="muted small">(reste ${fcfa(l.reste)})</span>`:''}</span></div>`).join('')}
+  return `<div class="plan"><b>Répartition automatique (${lignes.length} mois) :</b>${vis.map(l=>!l?'<div class="muted small">…</div>':`<div class="row"><span>${moisLabel(l.m)}${l.m>moisLoyer()?' <span class="badge ok">avance</span>':l.m<moisLoyer()?' <span class="badge neg">arriéré</span>':''}</span><span>${fcfa(l.amt)}${l.reste?` <span class="muted small">(reste ${fcfa(l.reste)})</span>`:''}</span></div>`).join('')}
   ${surplus>0?`<p class="neg small">⚠️ ${fcfa(surplus)} de trop : maximum ${MAX_AVANCE} mois d’avance${b.fin?' ou fin du bail':''}.</p>`:''}
   ${last?`<p class="ok small" style="margin:6px 0 0">${last.reste?`Le mois ${deM(last.m)} restera partiel.`:`✅ Loyer payé jusqu’à ${moisLabel(last.m)}.`}</p>`:''}</div>`;
 }
 let ENC=null;
 A.encaisser=(bid,preset)=>{
-  const b=db.baux.find(x=>x.id===bid),a=arrieres(b),cur=curMois();
+  const b=db.baux.find(x=>x.id===bid),a=arrieres(b),cur=moisLoyer();
   ENC=b;
   const base=montantJusqua(b,cur);
   const def=preset||base||montantDu(b,cur);
@@ -1086,14 +1096,14 @@ A.demo=async()=>{
   if(db._demo)return toast('Vous êtes déjà en mode démo.');
   if(db.logements.length&&!await ask('Ouvrir la démo ? Vos vraies données sont mises de côté (rien n’est effacé) et vous y reviendrez avec « Quitter la démo ».'))return;
   const reel=JSON.parse(JSON.stringify(db));delete reel._ts;
-  db=demoDb();db._demo=true;db._reel=reel;loadLogo();ADMKEY=null;state.uid=null;try{sessionStorage.removeItem(KEY+'_k');}catch(e){}state.imm='all';state.page='dash';state.mois=curMois();save();closeModal();render();
+  db=demoDb();db._demo=true;db._reel=reel;loadLogo();ADMKEY=null;state.uid=null;try{sessionStorage.removeItem(KEY+'_k');}catch(e){}state.imm='all';state.page='dash';state.mois=moisLoyer();state.moisAuto=true;save();closeModal();render();
 };
 A.quitterDemo=async()=>{
   if(!db._demo)return;
   const r=db._reel,vide=!r||!(r.logements||[]).length&&!(r.immeubles||[]).length;
   if(!await ask(vide?'Quitter la démo et commencer avec votre compte réel (vide) ? Les données fictives seront effacées.':'Quitter la démo et revenir à votre compte réel ? Les données fictives seront effacées.'))return;
   db=migrate(r&&Object.keys(r).length?r:emptyDb());delete db._demo;delete db._reel;loadLogo();finSession();
-  state.imm='all';state.page='dash';state.mois=curMois();state.id=null;save();closeModal();render();
+  state.imm='all';state.page='dash';state.mois=moisLoyer();state.moisAuto=true;state.id=null;save();closeModal();render();
   toast(vide?'Bienvenue dans votre compte réel 👋 Commencez par ajouter votre immeuble.':'Vous êtes de retour sur votre compte réel ✅');
 };
 A.reset=async()=>{
@@ -1335,18 +1345,18 @@ ${etatLieux(l?.type,'État des lieux d’entrée')}<div style="page-break-before
 /* ---------- Relances ---------- */
 const TONS={courtois:'Courtois',ferme:'Ferme',dernier:'Dernier rappel'};
 function aRelancer(){
-  const out=[],cur=curMois();
+  const out=[],cur=moisLoyer();
   BAUX().forEach(b=>{
     const t=locataire(b.locataireId);
     const a=arrieres(b);
     if(a.tot>0){
-      const d0=`${a.list[0].m}-${String(Math.min(28,b.jour)).padStart(2,'0')}`;
+      const d0=echeanceDe(b,a.list[0].m);
       const promesseKo=a.list.some(x=>accordDate(b,x.m)&&!accordActif(b,x.m));
       out.push({b,t,type:'retard',montant:a.tot,jours:-jours(d0),detail:`${a.n} mois : ${a.list.map(x=>moisLabel(x.m)).join(', ')}`,promesseKo});
     }
     accords([b]).filter(x=>x.ok&&jours(x.d)<=3).forEach(x=>out.push({b,t,type:'promesse',montant:x.r,jours:jours(x.d),detail:`Reste ${deM(x.m)} promis le ${fmtDate(x.d)}`,m:x.m,d:x.d}));
     if(!b.fin&&bailActif(b,cur)){
-      const s=statutBail(b,cur),ech=`${cur}-${String(Math.min(28,b.jour)).padStart(2,'0')}`,j=jours(ech);
+      const s=statutBail(b,cur),ech=echeanceDe(b,cur),j=jours(ech);
       if(s.statut==='attente'&&j>=0&&j<=5)out.push({b,t,type:'avant',montant:s.reste,jours:j,detail:`Échéance ${deM(cur)} le ${fmtDate(ech)}`});
     }
   });
@@ -1355,7 +1365,7 @@ function aRelancer(){
 }
 function msgRelance(r){
   const n=r.t?.nom||'',lg=logNom(r.b.logementId),sig=AG().nom?`\n\n${AG().nom}${AG().tel?' — '+AG().tel:''}`:(imm(logement(r.b.logementId)?.immeubleId)?.proprietaire?`\n\n${imm(logement(r.b.logementId)?.immeubleId).proprietaire}`:'');
-  if(r.type==='avant')return `Bonjour ${n}, petit rappel amical : le loyer ${deM(curMois())} pour le logement ${lg} (${fcfa(r.montant)}) arrive à échéance le ${fmtDate(`${curMois()}-${String(Math.min(28,r.b.jour)).padStart(2,'0')}`)}. Vous pouvez payer en espèces ou par Mobile Money. Merci et bonne journée.${sig}`;
+  if(r.type==='avant')return `Bonjour ${n}, petit rappel amical : le loyer ${deM(moisLoyer())} pour le logement ${lg} (${fcfa(r.montant)}) arrive à échéance le ${fmtDate(echeanceDe(r.b,moisLoyer()))}. Vous pouvez payer en espèces ou par Mobile Money. Merci et bonne journée.${sig}`;
   if(r.type==='promesse')return `Bonjour ${n}, comme convenu, le reste du loyer ${deM(r.m)} pour ${lg}, soit ${fcfa(r.montant)}, est attendu le ${fmtDate(r.d)}. Merci de votre ponctualité.${sig}`;
   const ton=state.ton||'courtois';
   if(ton==='courtois')return `Bonjour ${n}, sauf erreur de notre part, nous n’avons pas encore reçu le règlement de ${fcfa(r.montant)} pour le logement ${lg} (${r.detail}). Merci de bien vouloir régulariser dès que possible. Si vous avez déjà payé, merci de ne pas tenir compte de ce message.${sig}`;
@@ -2013,8 +2023,9 @@ document.addEventListener('input',e=>{
   if(e.target.id==='search'){state.search=e.target.value;const l=document.getElementById('liste');if(l)l.innerHTML=listeLocataires();}
 });
 document.addEventListener('change',e=>{
-  if(e.target.id==='mois'&&e.target.value){state.mois=e.target.value;render();}
+  if(e.target.id==='mois'&&e.target.value){state.mois=e.target.value;state.moisAuto=state.mois===moisLoyer();render();}
   if(e.target.id==='immSel'){state.imm=e.target.value;render();}
+  if(e.target.name==='terme'&&e.target.checked){db.settings.terme=e.target.value;log('parametres','Mois du loyer : '+(e.target.value==='echu'?'mois écoulé':'mois en cours'));save();state.moisAuto=true;render();toast('Le loyer à encaisser est maintenant celui '+deM(moisLoyer()));}
   if(e.target.id==='ecoMode'){try{localStorage.setItem('gestimmo_eco',e.target.checked?'1':'0');}catch(_){}toast(e.target.checked?'Mode économie de données activé':'Mode normal');}
   if(e.target.id==='autoRecu'){db.settings.autoRecu=e.target.checked;save();toast(e.target.checked?'Reçu automatique activé':'Reçu automatique désactivé');}
   if(e.target.id==='importFile'&&e.target.files[0]){if(isAdmin()||compromis())importFile(e.target.files[0]);else toast('🔒 Réservé au Super admin');}
