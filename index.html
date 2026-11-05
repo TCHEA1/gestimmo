@@ -314,17 +314,17 @@ const payeBail=(id,ym)=>idx().get(id+'|'+ym)||0;
 const echu=(b,ym)=>{const cur=moisLoyer();return ym<cur||(ym===cur&&new Date().getDate()>Number(b.jour||5));};
 /* Accords de paiement : le locataire paie une partie et promet le reste pour une date */
 const accordDate=(b,ym)=>(b.accords||{})[ym]||'';
-const accordActif=(b,ym)=>{const d=accordDate(b,ym);return !!d&&today()<=d&&payeBail(b.id,ym)<montantDu(b,ym);};
+const accordActif=(b,ym)=>{const d=accordDate(b,ym);return !!d&&(today()<=d||!echu(b,ym))&&payeBail(b.id,ym)<montantDu(b,ym);};
 function statutBail(b,ym){
   const du=montantDu(b,ym),p=payeBail(b.id,ym),reste=Math.max(0,du-p),acc=accordDate(b,ym);
   let statut=reste===0?'paye':p>0?'partiel':echu(b,ym)?'retard':'attente';
-  if(reste>0&&acc)statut=today()<=acc?'accord':'retard';
+  if(reste>0&&acc)statut=today()<=acc||!echu(b,ym)?'accord':'retard';
   return {du,p,reste,statut,accord:acc};
 }
 const statutBadge=s=>s.statut==='accord'?`<span class="badge warn">⏳ Reste promis le ${fmtDate(s.accord)}</span>`:(s.statut==='retard'&&s.accord?`<span class="badge neg">Promesse non tenue (${fmtDate(s.accord)})</span>`:badge(s.statut));
 function accords(B){
   const out=[];
-  B.forEach(b=>Object.entries(b.accords||{}).forEach(([m,d])=>{const r=Math.max(0,montantDu(b,m)-payeBail(b.id,m));if(r>0)out.push({b,m,d,r,ok:today()<=d});}));
+  B.forEach(b=>Object.entries(b.accords||{}).forEach(([m,d])=>{const r=Math.max(0,montantDu(b,m)-payeBail(b.id,m));if(r>0)out.push({b,m,d,r,ok:today()<=d||!echu(b,m)});}));
   return out.sort((x,y)=>x.d.localeCompare(y.d));
 }
 function moisImpayes(b){
@@ -563,7 +563,7 @@ function pageFiche(){
     <p class="muted">Loyer ${fcfa(montantDu(b))} · Caution ${fcfa(b.caution)}${b.fin?` · restituée ${fcfa(b.cautionRestituee||0)}${b.cautionRetenue?` · retenue ${fcfa(b.cautionRetenue)}${b.motifRetenue?' ('+esc(b.motifRetenue)+')':''}`:''}`:''}</p>
     ${(b.revisions||[]).length?`<p class="muted">Révisions : ${b.revisions.map(r=>`${moisLabel(r.depuis)} → ${fcfa(Number(r.loyer)+Number(r.charges||0))}`).join(' · ')}</p>`:''}
     ${a.n?`<p class="neg small">Mois impayés : ${a.list.map(x=>`${moisLabel(x.m)} (${fcfa(x.r)})`).join(', ')}</p>`:''}
-    ${accords([b]).map(x=>`<p class="small ${x.ok?'warn-t':'neg'}">🤝 Reste ${deM(x.m)} : ${fcfa(x.r)} promis pour le ${fmtDate(x.d)}${x.ok?'':' — non tenu'}</p>`).join('')}</div>`;
+    ${accords([b]).map(x=>`<p class="small ${x.ok?'warn-t':'neg'}">🤝 Reste ${deM(x.m)} : ${fcfa(x.r)} promis pour le ${fmtDate(x.d)}${x.ok?'':' — non tenu'} <button type="button" class="sm ghost" data-a="modAccord" data-id="${b.id}|${x.m}">✏️ Modifier</button></p>`).join('')}</div>`;
   }).join('')||'<p class="muted">Aucun bail.</p>'}
   <h3>Historique des paiements</h3>
   ${tbl([['Reçu N°'],['Date'],['Période payée'],['Montant','n'],['Mode'],['','act']],recuRows(recus(pays),false),'Aucun paiement enregistré.')}`;
@@ -909,7 +909,7 @@ A.encaisser=(bid,preset)=>{
     <p class="muted small">Paiement rapide (arriérés inclus) :</p><div class="btns" style="margin-top:4px">${q||'<span class="muted small">Déjà payé très en avance.</span>'}</div>`+
     num('Montant reçu (FCFA)','montant',def)+
     `<div id="plan">${planHtml(b,def)}</div>`+
-    `<div id="accordBox" class="accord ${partielFin(b,def)?'':'hidden'}"><label>🤝 Le locataire paiera le reste le<input name="accord" type="date" value="${shift(cur,1)}-${dj}"></label><p class="muted small" style="margin:0">Tant que cette date n’est pas passée, il n’est pas compté en retard. Laissez vide s’il n’y a pas d’accord.</p></div>`+
+    `<div id="accordBox" class="accord ${partielFin(b,def)?'':'hidden'}"><label>🤝 Le locataire paiera le reste le<input name="accord" type="date" value="${echeanceDe(b,shift(cur,1))}"></label><p class="muted small" style="margin:0">Tant que cette date n’est pas passée, il n’est pas compté en retard. Laissez vide s’il n’y a pas d’accord.</p></div>`+
     fld('Date de réception','date',today(),'date')+
     sel('Mode de paiement','mode',MODES,'Espèces')+
     fld('Référence de transaction (facultatif)','ref','','text',false),
@@ -924,6 +924,21 @@ A.encaisser=(bid,preset)=>{
       const rid=enregistrer(b,p.lignes,{date:d.date,mode:d.mode,ref:d.ref.trim()});
       setTimeout(()=>{if(db.settings.autoRecu!==false)A.recu(rid);else toast('Paiement enregistré ✅');},80);
     },'Enregistrer et générer le reçu');
+};
+A.modAccord=k=>{
+  const [bid,m]=String(k).split('|'),b=db.baux.find(x=>x.id===bid);if(!b)return;
+  const d0=accordDate(b,m),r=Math.max(0,montantDu(b,m)-payeBail(b.id,m));
+  modal('Modifier la promesse',
+    `<p><b>${esc(bailNom(b))}</b> · ${esc(logNom(b.logementId))}</p><p>Reste ${deM(m)} : <b>${fcfa(r)}</b> — promis pour le ${fmtDate(d0)}</p>`+
+    fld('Nouvelle date promise','accord',d0&&d0>=today()?d0:echeanceDe(b,m)>=today()?echeanceDe(b,m):today(),'date')+
+    (isAdmin()||!comptes()?`<label class="chk"><input type="checkbox" name="suppr"> Supprimer cette promesse (erreur de saisie)</label>`:'')+
+    `<p class="muted small">Si le locataire a payé le reste, utilisez plutôt « Encaisser » : la promesse disparaît d’elle-même.</p>`,
+    d=>{
+      b.accords=b.accords||{};
+      if(d.suppr){if(comptes()&&!isAdmin())fail('Réservé à l’admin');delete b.accords[m];log('paiement',`Promesse supprimée — ${bailNom(b)} (reste ${deM(m)}, ${fcfa(r)})`);toast('Promesse supprimée');return;}
+      if(!d.accord)fail('Choisissez une date');if(d.accord<today())fail('La date doit être aujourd’hui ou plus tard');
+      b.accords[m]=d.accord;log('paiement',`Promesse modifiée — ${bailNom(b)} : reste ${deM(m)} (${fcfa(r)}) pour le ${fmtDate(d.accord)}${d0?' (avant : '+fmtDate(d0)+')':''}`);toast('Promesse mise à jour ✅');
+    });
 };
 function partielFin(b,v){const l=planPaiement(b,Number(v)).lignes;return l.length>0&&l[l.length-1].reste>0;}
 function majPlan(v){const pl=document.getElementById('plan');if(!pl||!ENC)return;pl.innerHTML=planHtml(ENC,Number(v));const ab=document.getElementById('accordBox');if(ab)ab.classList.toggle('hidden',!partielFin(ENC,v));}
