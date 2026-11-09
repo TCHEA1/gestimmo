@@ -575,6 +575,7 @@ function pageLoyers(){
   const att=sum(actifs,x=>x.s.du);
   const pays=PAYS().filter(p=>p.mois===ym);
   const enc=sum(pays,p=>p.montant),reste=sum(actifs,x=>x.s.reste);
+  const enRet=actifs.filter(x=>x.s.reste>0&&x.s.statut!=='accord'&&echu(x.b,ym)),prom=actifs.filter(x=>x.s.statut==='accord'),attn=actifs.filter(x=>x.s.reste>0&&x.s.statut!=='accord'&&!echu(x.b,ym));
   const mc=ECHU()?shift(ym,1):ym; /* mois calendaire où l'argent de ce loyer est encaissé */
   const rc=recus(PAYS().filter(p=>p.date.slice(0,7)===mc)),cash=sum(rc,r=>r.tot);
   const avs=sum(PAYS().filter(p=>p.date.slice(0,7)===mc&&p.mois>ym),p=>p.montant);
@@ -582,7 +583,7 @@ function pageLoyers(){
   const dep=depMois(mc),net=cash-dep;
   const avP=PAYS().filter(p=>p.mois>ym),avTot=sum(avP,p=>p.montant),avN=new Set(avP.map(p=>p.bailId)).size;
   return `${monthNav()}
-  <div class="grid">${kpi('Attendu',fcfa(att))}${kpi('Loyers du mois payés',fcfa(enc),'','ok')}${kpi('Reste à percevoir',fcfa(reste),`Recouvrement ${att?Math.round(Math.min(enc,att)/att*100):0} %`,reste?'neg':'ok')}</div>
+  <div class="grid">${kpi('Attendu',fcfa(att))}${kpi('Loyers du mois payés',fcfa(enc),'','ok')}${kpi('Reste à percevoir',fcfa(reste),`Recouvrement ${att?Math.round(Math.min(enc,att)/att*100):0} %`,reste?'neg':'ok')}${kpi('🔴 En retard',fcfa(sum(enRet,x=>x.s.reste)),enRet.length?`${enRet.length} locataire(s) : ${enRet.map(x=>esc(bailNom(x.b))).join(', ')}`:'Personne en retard',enRet.length?'neg':'ok')}${kpi('🤝 Promis (pas encore en retard)',fcfa(sum(prom,x=>x.s.reste)),prom.length?prom.map(x=>`${esc(bailNom(x.b))} : ${fcfa(x.s.reste)} le ${fmtDate(x.s.accord)}`).join(' · '):'Aucune promesse en cours')}${kpi('⏳ Pas encore échu',fcfa(sum(attn,x=>x.s.reste)),attn.length?`${attn.length} locataire(s), échéance pas encore passée`:'—')}</div>
   <div class="grid">${kpi('💰 Argent reçu en '+moisLabel(mc),fcfa(cash),[`Loyer ${deM(ym)} : ${fcfa(cash-avs-arr)}`,avs?`avances ${fcfa(avs)}`:'',arr?`arriérés ${fcfa(arr)}`:''].filter(Boolean).join(' · '),'ok')}${kpi('🏦 Net en caisse — '+moisLabel(mc),fcfa(net),`Argent reçu ${fcfa(cash)} − dépenses ${fcfa(dep)}`,net<0?'neg':'ok')}${kpi('⏩ Avances (mois futurs déjà payés)',fcfa(avTot),avN?`${avN} locataire(s) ont payé après ${moisLabel(ym)}`:'Aucune avance')}</div>
   <div class="row"><h3>Loyers ${deM(ym)}</h3><button class="sm ghost" data-a="csv">⬇ Export Excel</button></div>
   ${tbl([['Logement'],['Locataire'],['Dû','n'],['Payé','n'],['Reste','n'],['Statut'],['Situation'],['','act']],actifs.map(({b,s})=>{
