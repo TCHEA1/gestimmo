@@ -575,10 +575,15 @@ function pageLoyers(){
   const att=sum(actifs,x=>x.s.du);
   const pays=PAYS().filter(p=>p.mois===ym);
   const enc=sum(pays,p=>p.montant),reste=sum(actifs,x=>x.s.reste);
-  const rc=recus(PAYS().filter(p=>p.date.slice(0,7)===ym)),cash=sum(rc,r=>r.tot);
-  const avs=sum(PAYS().filter(p=>p.date.slice(0,7)===ym&&p.mois>ym),p=>p.montant);
+  const mc=ECHU()?shift(ym,1):ym; /* mois calendaire où l'argent de ce loyer est encaissé */
+  const rc=recus(PAYS().filter(p=>p.date.slice(0,7)===mc)),cash=sum(rc,r=>r.tot);
+  const avs=sum(PAYS().filter(p=>p.date.slice(0,7)===mc&&p.mois>ym),p=>p.montant);
+  const arr=sum(PAYS().filter(p=>p.date.slice(0,7)===mc&&p.mois<ym),p=>p.montant);
+  const dep=depMois(mc),net=cash-dep;
+  const avP=PAYS().filter(p=>p.mois>ym),avTot=sum(avP,p=>p.montant),avN=new Set(avP.map(p=>p.bailId)).size;
   return `${monthNav()}
   <div class="grid">${kpi('Attendu',fcfa(att))}${kpi('Loyers du mois payés',fcfa(enc),'','ok')}${kpi('Reste à percevoir',fcfa(reste),`Recouvrement ${att?Math.round(Math.min(enc,att)/att*100):0} %`,reste?'neg':'ok')}</div>
+  <div class="grid">${kpi('💰 Argent reçu en '+moisLabel(mc),fcfa(cash),[`Loyer ${deM(ym)} : ${fcfa(cash-avs-arr)}`,avs?`avances ${fcfa(avs)}`:'',arr?`arriérés ${fcfa(arr)}`:''].filter(Boolean).join(' · '),'ok')}${kpi('🏦 Net en caisse — '+moisLabel(mc),fcfa(net),`Argent reçu ${fcfa(cash)} − dépenses ${fcfa(dep)}`,net<0?'neg':'ok')}${kpi('⏩ Avances (mois futurs déjà payés)',fcfa(avTot),avN?`${avN} locataire(s) ont payé après ${moisLabel(ym)}`:'Aucune avance')}</div>
   <div class="row"><h3>Loyers ${deM(ym)}</h3><button class="sm ghost" data-a="csv">⬇ Export Excel</button></div>
   ${tbl([['Logement'],['Locataire'],['Dû','n'],['Payé','n'],['Reste','n'],['Statut'],['Situation'],['','act']],actifs.map(({b,s})=>{
     const t=locataire(b.locataireId);
@@ -586,7 +591,7 @@ function pageLoyers(){
     return [esc(logNom(b.logementId)),`<button class="linkbtn" data-a="fiche" data-id="${b.locataireId}">${esc(t?.nom)}</button>`,fcfa(s.du),fcfa(s.p),`<span class="${s.reste?(s.statut==='accord'?'':'neg'):'ok'}">${fcfa(s.reste)}</span>`,statutBadge(s),b.fin?'<span class="badge">Parti</span>':jusquaBadge(b),
       `${s.reste&&t?.tel&&s.statut!=='attente'?`<a class="btn wa sm" href="${esc(waLink(t.tel,msg))}" target="_blank" rel="noopener">${s.statut==='accord'?'Rappel':'Relancer'}</a>`:''}${b.fin?'':`<button class="sm ${s.reste?'primary':'ghost'}" data-a="encaisser" data-id="${b.id}">${s.reste?'Encaisser':'+ Avance'}</button>`}`];
   }),'Aucun bail actif ce mois-ci.')}
-  <div class="row"><h3>Reçus émis en ${moisLabel(ym)}</h3><span class="muted">Argent reçu : <b class="ok">${fcfa(cash)}</b>${avs?` · dont avances ${fcfa(avs)}`:''}</span></div>
+  <div class="row"><h3>Reçus émis en ${moisLabel(mc)}</h3><span class="muted">Argent reçu : <b class="ok">${fcfa(cash)}</b>${avs?` · dont avances ${fcfa(avs)}`:''}</span></div>
   ${tbl([['Reçu N°'],['Date'],['Locataire'],['Période payée'],['Montant','n'],['Mode'],['','act']],recuRows(rc,true),'Aucun reçu émis ce mois.')}`;
 }
 
