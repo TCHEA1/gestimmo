@@ -878,6 +878,8 @@ function payeJusqua(b){
 function avance(b){const cur=moisLoyer(),j=payeJusqua(b);if(!j||j<=cur)return {n:0,tot:0};let n=0,tot=0;for(let m=shift(cur,1);m<=j;m=shift(m,1)){n++;tot+=montantDu(b,m);}return {n,tot};}
 function jusquaBadge(b){
   const j=payeJusqua(b),cur=moisLoyer();
+  const nx0=j?shift(j,1):b.debut.slice(0,7),pp=payeBail(b.id,nx0),rr=Math.max(0,montantDu(b,nx0)-pp);
+  if(pp>0&&rr>0&&nx0<=cur&&(accordActif(b,nx0)||!echu(b,nx0)))return `<span class="badge ok">✓ ${moisLabel(nx0)} payé ${fcfa(pp)} · doit ${fcfa(rr)}${accordDate(b,nx0)?' (le '+fmtDate(accordDate(b,nx0))+')':''}</span>`;
   if(!j)return '<span class="badge neg">Aucun mois soldé</span>';
   if(j>cur)return `<span class="badge ok">✓ Avance jusqu’à ${moisLabel(j)}</span>`;
   if(j===cur)return `<span class="badge ok">À jour (${moisLabel(j)})</span>`;
